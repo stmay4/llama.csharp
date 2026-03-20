@@ -350,18 +350,6 @@ namespace Llama.csharp.Native
         /// <summary>
         /// Create a sampler which makes tokens impossible unless they match the grammar.
         /// </summary>
-        /// <param name="model">The model that this grammar will be used with</param>
-        /// <param name="grammar"></param>
-        /// <param name="root">Root rule of the grammar</param>
-        /// <returns></returns>
-        public void AddGrammar(SafeLlamaModelHandle model, string grammar, string root)
-        {
-            AddGrammar(model.Vocab, grammar, root);
-        }
-
-        /// <summary>
-        /// Create a sampler which makes tokens impossible unless they match the grammar.
-        /// </summary>
         /// <param name="vocab">The vocabulary that this grammar will be used with</param>
         /// <param name="grammar"></param>
         /// <param name="root">Root rule of the grammar</param>
@@ -384,7 +372,7 @@ namespace Llama.csharp.Native
         /// <param name="triggerTokens">A list of tokens that will trigger the grammar sampler. Grammar sampler will be fed content starting from the trigger token included..</param>
         /// <returns></returns>
         public void AddLazyGrammar(
-            SafeLlamaModelHandle model,
+            SafeLlamaModelHandle.Vocabulary vocab,
             string grammar, string root,
             ReadOnlySpan<string> patterns,
             ReadOnlySpan<LLamaToken> triggerTokens)
@@ -394,7 +382,7 @@ namespace Llama.csharp.Native
                 LlamaCpp.Llama_SamplerChainAdd(
                     this,
                     LlamaCpp.Llama_SamplerInitGrammarLazyPatterns(
-                        model.Vocab.VocabNative,
+                        vocab.VocabNative,
                         grammar, root,
                         patterns.ToArray(),
                         triggerTokens.ToArray(), (nuint)triggerTokens.Length

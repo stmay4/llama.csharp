@@ -85,10 +85,10 @@ namespace Llama.csharp.Native
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate IntPtr llama_sampler_init_typical(float p, nint min_keep);
 
-        // #details Updates the logits l_i` = l_i/t. When t <= 0.0f, the maximum logit is kept at it's original value, the rest are set to -inf
+        // Updates the logits l_i` = l_i/t. When t <= 0.0f, the maximum logit is kept at it's original value, the rest are set to -inf
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate IntPtr llama_sampler_init_temp(float t);
-
+        // Dynamic temperature implementation (a.k.a. entropy) described in the paper https://arxiv.org/abs/2309.02772.
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate IntPtr llama_sampler_init_temp_ext(float t, float delta, float exponent);
 

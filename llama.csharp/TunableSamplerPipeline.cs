@@ -2,17 +2,17 @@
 
 namespace Llama.csharp
 {
-    internal class TunableSamplerPipeline : BaseSamplingPipeline
+    public class TunableSamplerPipeline : BaseSamplingPipeline
     {
 
-        private TunableSamplerPipelineSettings? _settings = null;
+        private TunableSamplerPipelineSettings _settings = new TunableSamplerPipelineSettings([],new GreedySampler());
 
-        public TunableSamplerPipeline(TunableSamplerPipelineSettings? settings)
+        public TunableSamplerPipeline(TunableSamplerPipelineSettings settings)
         {
             _settings = settings;
         }
 
-        protected override SafeLLamaSamplerChainHandle CreateChain(SafeLLamaContextHandle context)
+        protected override SafeLLamaSamplerChainHandle CreateChain()
         {
             var chain = SafeLLamaSamplerChainHandle.Create(LLamaSamplerChainParams.Default());
 
@@ -21,10 +21,13 @@ namespace Llama.csharp
             return chain;
         }
 
-        private SafeLLamaSamplerChainHandle tuneChainFromSettings(SafeLLamaSamplerChainHandle chain)
+        private void tuneChainFromSettings(SafeLLamaSamplerChainHandle chain)
         {
-            //здесь настройка
-            return chain;
+            foreach (ISampler sampler in _settings.Samplers)
+            {
+                sampler.AddToChain(chain);
+            }
+            _settings.FinalizeSampler.AddToChain(chain);
         }
     }
 }

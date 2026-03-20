@@ -10,6 +10,9 @@ namespace Llama.csharp
         public bool DecodeSpecialTokens { get; set; } = true;
         public bool AutoStopFromEOG { get; set; } = true;
         public IReadOnlyList<string> AntiPrompts { get; set; } = [];
-        public ISamplingPipeline SamplingPipeline { get; set; } = new GreedySamplingPipeline();
+        public ISamplingPipeline SamplingPipeline { get; set; } 
+            = new TunableSamplerPipeline(new TunableSamplerPipelineSettings(
+                [new TopKSampler()],
+                new Mirostat2Sampler()));
     }
 }

@@ -21,7 +21,7 @@ namespace Llama.csharp.Interfaces
         /// </summary>
         /// <param name="ctx"></param>
         /// <param name="data"></param>
-        public void Apply(SafeLLamaContextHandle ctx, LLamaTokenDataArray data);
+        public void Apply(LLamaTokenDataArray data);
 
         /// <summary>
         /// Reset all internal state of the sampling pipeline

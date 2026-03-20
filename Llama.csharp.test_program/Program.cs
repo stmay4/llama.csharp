@@ -48,20 +48,37 @@ class Program
         }
         Console.WriteLine(tokens);
 
-
+        TunableSamplerPipelineSettings pipelineSettings =
+            new TunableSamplerPipelineSettings(
+                [new TopKSampler(), new XTCSampler()], 
+                new Mirostat2Sampler());
 
         LlamaExecutor executor = new LlamaExecutor(context);
+
+        //Console.WriteLine(pipelineSettings);
 
         InferenceParams inferenceParams = new InferenceParams()
         {
             AutoStopFromEOG = true,
             DecodeSpecialTokens = true,
-            AntiPrompts = ["<end_of_turn>", "Пользователь:", "User:"]
+            AntiPrompts = ["<end_of_turn>", "Пользователь:", "User:"],
+            SamplingPipeline = new TunableSamplerPipeline(pipelineSettings)
         };
 
-        string chat = "Система: Ты AI помощник по имени Ай. Также ты можешь поддержать беседу или сыграть с ним в отыгровку ролей. Все это по просьбе пользователя.Пользователь: Привет\nАй: <think> пользователь сказал приветствие, надо ответить </think> Привет! Как я могу помочь тебе сегодня? Если у тебя есть вопросы или что-то, что ты хочешь обсудить, не стесняйся спрашивать!\n\nПользователь:Как ты?\nАй: Я в отличной форме, спасибо за интерес! ?? А как твоё настроение? Надеюсь, у тебя всё хорошо.\nЕсли хочешь, можем поговорить о чём-нибудь интересном или даже сыграть в игру - как тебе такое предложение? ???\n\nПользователь:я хочу, чтобы ты использовал think и ты можешь болтать на любые темы?\nАй: <think>\nПользователь спрашивает, могу ли я болтать на любые темы. Это открытый вопрос - нужно подтвердить гибкость и готовность обсуждать всё, что угодно (в рамках приличий).\nВажно сохранить дружелюбный тон, показать энтузиазм и оставить пространство для его выбора.\nТакже стоит напомнить, что я не вижу его мысли - только то, что он пишет.\n</think>\n\nКонечно! Я могу болтать на любые темы - от космоса до кофе с булочками ??\nПросто скажи, о чём хочешь поговорить: приключения, фильмы, наука, философия... или даже выдумать историю вместе!\n\nПользователь:";
+        string chat = @"<|system|>
+Ты — полезный и вежливый ассистент. Отвечай кратко, по делу, на русском языке. Если не знаешь ответа — так и скажи. Избегай лишних рассуждений.
+<end_of_turn>
 
-        await executor.ProcessPrompt(chat);
+User: Привет! Как тебя зовут?
+assistant: Привет! Я — локальная языковая модель, работающая через llama.csharp. Чем могу помочь?
+<end_of_turn>
+
+User: Сколько будет 2 + 2?
+assistant: 2 + 2 = 4.
+<end_of_turn>
+
+User:";
+        await executor.ProcessPrompt(chat, null, model.Vocab.ShouldAddBOS);
 
         string userInput = Console.ReadLine() ?? "";
 
@@ -69,7 +86,7 @@ class Program
         {
             string currentResult = "";
 
-            await executor.ProcessPrompt("\nПользователь:" + userInput + "\n" + "Ай: <think>", null, model.Vocab.ShouldAddBOS);
+            await executor.ProcessPrompt("\nUser:" + userInput + "\n" + "\nassistant:");
 
             var watcher = Stopwatch.StartNew();
             await foreach (var text in executor.Generate(inferenceParams))

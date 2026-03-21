@@ -207,6 +207,24 @@ namespace Llama.csharp.Native
         [return: MarshalAs(UnmanagedType.U1)]
         private delegate bool llama_model_is_recurrent(SafeLlamaModelHandle model);
 
+        /// <summary>
+        /// Returns true if the model is hybrid (like Jamba, Granite, etc.)
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private delegate bool llama_model_is_hybrid(SafeLlamaModelHandle model);
+
+        /// <summary>
+        /// Returns true if the model is diffusion-based (like LLaDA, Dream, etc.)
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private delegate bool llama_model_is_diffusion(SafeLlamaModelHandle model);
+
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private unsafe delegate LLamaVocabNative* llama_model_get_vocab(SafeLlamaModelHandle model);
 
@@ -221,31 +239,33 @@ namespace Llama.csharp.Native
 
         #region functions
 
-        private static llama_model_rope_type _llama_model_rope_type;
-        private static llama_model_chat_template _llama_model_chat_template;
-        private static llama_model_load_from_file _llama_model_load_from_file;
-        private static llama_model_free _llama_model_free;
-        private static llama_model_meta_count _llama_model_meta_count;
-        private static llama_model_meta_key_by_index _llama_model_meta_key_by_index;
+        private static llama_model_rope_type             _llama_model_rope_type;
+        private static llama_model_chat_template         _llama_model_chat_template;
+        private static llama_model_load_from_file        _llama_model_load_from_file;
+        private static llama_model_free                  _llama_model_free;
+        private static llama_model_meta_count            _llama_model_meta_count;
+        private static llama_model_meta_key_by_index     _llama_model_meta_key_by_index;
         private static llama_model_meta_val_str_by_index _llama_model_meta_val_str_by_index;
-        private static llama_model_meta_val_str _llama_model_meta_val_str;
-        private static llama_n_vocab _llama_n_vocab;
-        private static llama_model_n_ctx_train _llama_model_n_ctx_train;
-        private static llama_model_n_embd _llama_model_n_embd;
-        private static llama_model_n_layer _llama_model_n_layer;
-        private static llama_model_n_head _llama_model_n_head;
-        private static llama_model_n_head_kv _llama_model_n_head_kv;
-        private static llama_model_desc _llama_model_desc;
-        private static llama_model_size _llama_model_size;
-        private static llama_model_n_params _llama_model_n_params;
+        private static llama_model_meta_val_str          _llama_model_meta_val_str;
+        private static llama_n_vocab                     _llama_n_vocab;
+        private static llama_model_n_ctx_train           _llama_model_n_ctx_train;
+        private static llama_model_n_embd                _llama_model_n_embd;
+        private static llama_model_n_layer               _llama_model_n_layer;
+        private static llama_model_n_head                _llama_model_n_head;
+        private static llama_model_n_head_kv             _llama_model_n_head_kv;
+        private static llama_model_desc                  _llama_model_desc;
+        private static llama_model_size                  _llama_model_size;
+        private static llama_model_n_params              _llama_model_n_params;
         private static llama_model_rope_freq_scale_train _llama_model_rope_freq_scale_train;
-        private static llama_model_decoder_start_token _llama_model_decoder_start_token;
-        private static llama_model_has_encoder _llama_model_has_encoder;
-        private static llama_model_has_decoder _llama_model_has_decoder;
-        private static llama_adapter_lora_init _llama_adapter_lora_init;
-        private static llama_model_is_recurrent _llama_model_is_recurrent;
-        private static llama_model_get_vocab _llama_model_get_vocab;
-        private static llama_model_default_params _llama_model_default_params;
+        private static llama_model_decoder_start_token   _llama_model_decoder_start_token;
+        private static llama_model_has_encoder           _llama_model_has_encoder;
+        private static llama_model_has_decoder           _llama_model_has_decoder;
+        private static llama_adapter_lora_init           _llama_adapter_lora_init;
+        private static llama_model_is_recurrent          _llama_model_is_recurrent;
+        private static llama_model_is_hybrid             _llama_model_is_hybrid;
+        private static llama_model_is_diffusion          _llama_model_is_diffusion;
+        private static llama_model_get_vocab             _llama_model_get_vocab;
+        private static llama_model_default_params        _llama_model_default_params;
 
         #endregion
 
@@ -287,6 +307,8 @@ namespace Llama.csharp.Native
             _llama_model_has_decoder = GetLibFunction<llama_model_has_decoder>(_llamaHandle, "llama_model_has_decoder");
             _llama_adapter_lora_init = GetLibFunction<llama_adapter_lora_init>(_llamaHandle, "llama_adapter_lora_init");
             _llama_model_is_recurrent = GetLibFunction<llama_model_is_recurrent>(_llamaHandle, "llama_model_is_recurrent");
+            _llama_model_is_hybrid = GetLibFunction<llama_model_is_hybrid>(_llamaHandle, "llama_model_is_hybrid");
+            _llama_model_is_diffusion = GetLibFunction<llama_model_is_diffusion>(_llamaHandle, "llama_model_is_diffusion");
             _llama_model_get_vocab = GetLibFunction<llama_model_get_vocab>(_llamaHandle, "llama_model_get_vocab");
         }
 
@@ -364,6 +386,18 @@ namespace Llama.csharp.Native
         {
             EnsureInitialized();
             return _llama_model_is_recurrent(model);
+        }
+
+        public static bool Llama_ModelIsHybrid(SafeLlamaModelHandle model)
+        {
+            EnsureInitialized();
+            return _llama_model_is_hybrid(model);
+        }
+
+        public static bool Llama_ModelIsDiffusion(SafeLlamaModelHandle model)
+        {
+            EnsureInitialized();
+            return _llama_model_is_diffusion(model);
         }
 
         public static unsafe int Llama_ModelDesc(SafeLlamaModelHandle model, byte* buf, nint bufSize)

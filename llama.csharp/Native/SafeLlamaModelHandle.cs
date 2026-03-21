@@ -73,6 +73,16 @@ namespace Llama.csharp.Native
         public bool IsRecurrent => LlamaCpp.Llama_ModelIsRecurrent(this);
 
         /// <summary>
+        /// Returns true if the model is hybrid (like Jamba, Granite, etc.)
+        /// </summary>
+        public bool IsHybrid => LlamaCpp.Llama_ModelIsHybrid(this);
+
+        /// <summary>
+        /// Returns true if the model is diffusion-based (like LLaDA, Dream, etc.)
+        /// </summary>
+        public bool IsDiffusion => LlamaCpp.Llama_ModelIsDiffusion(this);
+
+        /// <summary>
         /// Get a description of this model
         /// </summary>
         public string Description

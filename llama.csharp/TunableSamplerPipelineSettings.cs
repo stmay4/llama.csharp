@@ -5,8 +5,9 @@ namespace Llama.csharp
 {
     public class TunableSamplerPipelineSettings
     {
-        //список семплеров и их характеристик
-
+        /// <summary>
+        /// Список семплеров в порядке применения
+        /// </summary>
         private List<ISampler> _samplers = new List<ISampler>();
         public List<ISampler> Samplers
         {
@@ -14,8 +15,10 @@ namespace Llama.csharp
             set { _samplers = value; }
         } 
 
+        /// <summary>
+        /// Финальный семплер, который выбирает один токен
+        /// </summary>
         private IFinalizeSampler _finalizeSampler = new GreedySampler();
-
         public IFinalizeSampler FinalizeSampler
         {
             get { return _finalizeSampler; }
@@ -29,17 +32,23 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// https://github.com/ggml-org/llama.cpp/blob/master/tools/cli/README.md
+    /// </summary>
     public interface ISampler 
     {
         /// <summary>
-        /// 
+        /// Контракт: метод добавления семплера в конвеер
         /// </summary>
-        /// <param name="chain"></param>
+        /// <param name="chain"> конвеер в который добавляем семплер, передается для использования методов SafeLLamaSamplerChainHandle для добавления семплеров </param>
         public void AddToChain(SafeLLamaSamplerChainHandle chain);
     }
 
+    /// <summary>
+    /// Сортируем распределение токенов по убыванию и выбираем первые K
+    /// </summary>
     public class TopKSampler : ISampler
-    {
+    { 
         public int K
         {
             get => _k;
@@ -58,6 +67,9 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// Вычисляем среднее арифметическое и стандартное отклонение, расчитываем порог как ср ариф + ст откл * N, берем токены чья вероятность выше порога
+    /// </summary>
     public class TopNSigmaSampler : ISampler
     {
         public float N
@@ -78,6 +90,9 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// Фильтрует токены, оставляя только те, чья кумулятивная вероятность не превышает заданный порог P.
+    /// </summary>
     public class TopPSampler : ISampler
     {
         
@@ -112,6 +127,9 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// Оставляет токены, чья вероятность составляет не менее P * (вероятность самого вероятного токена).
+    /// </summary>
     public class MinPSampler : ISampler
     {
 
@@ -180,6 +198,9 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// Делим логиты на температуру перед softmax
+    /// </summary>
     public class TemperatureSampler : ISampler
     {
 
@@ -201,6 +222,10 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// Адаптивная температура: изменяет температуру в зависимости от энтропии распределения.
+    /// Позволяет автоматически увеличивать разнообразие в неопределённых местах и уменьшать – в уверенных.
+    /// </summary>
     public class AdapTSampler : ISampler
     {
         public float T
@@ -241,6 +266,10 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// Экстремальное семплирование (XTC): с заданной вероятностью отбрасывает наиболее вероятные токены,
+    /// оставляя только токены из "хвоста" распределения. Используется для повышения креативности и неожиданности генерации.
+    /// </summary>
     public class XTCSampler : ISampler
     {
         public float P
@@ -270,7 +299,7 @@ namespace Llama.csharp
                 _treshold = value;
             }
         }
-        private readonly float _treshold = 1f;
+        private readonly float _treshold = 0.1f;
 
         public int MinKeep
         {
@@ -306,6 +335,9 @@ namespace Llama.csharp
 
     public class PenaltiesSampler : ISampler
     {
+        /// <summary>
+        /// на какое количество токенов обращать внимание при наказании, при -1 - весь контекст
+        /// </summary>
         public int PenaltyCount { get; init; } = 64; //0 = disabled, -1 = ctx_size
         public float RepeatPenalty { get; init; } = 1;
 
@@ -353,6 +385,10 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// Применяет смещения (bias) к логитам конкретных токенов.
+    /// Позволяет увеличивать или уменьшать вероятность выбора определённых токенов вручную.
+    /// </summary>
     public class LogitBiasSampler : ISampler
     {
         public IReadOnlyDictionary<LLamaToken, float> LogitBias { get; init; } = new Dictionary<LLamaToken, float>();
@@ -386,16 +422,22 @@ namespace Llama.csharp
         public void AddToChain(SafeLLamaSamplerChainHandle chain);
     }
 
+    /// <summary>
+    /// жадное декодирование
+    /// </summary>
     public class GreedySampler: IFinalizeSampler
     {
         public GreedySampler() { }
 
         public void AddToChain(SafeLLamaSamplerChainHandle chain)
         {
-            throw new NotImplementedException();
+            chain.AddGreedySampler();
         }
     }
 
+    /// <summary>
+    /// случайная выборка
+    /// </summary>
     public class DistributionSampler : IFinalizeSampler
     {
         public uint Seed { get; init; } = 42;
@@ -406,9 +448,15 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// Миростат - поддерживает заданный уровень перплексии
+    /// </summary>
     public class Mirostat2Sampler : IFinalizeSampler
     {
         public uint Seed { get; init; } = 42;
+        /// <summary>
+        /// уровень перплексии
+        /// </summary>
         public float Tau
         {
             get => _tau;
@@ -420,6 +468,9 @@ namespace Llama.csharp
             }
         }
         private readonly float _tau = 3;
+        /// <summary>
+        /// скорость изменения
+        /// </summary>
         public float Eta
         {
             get => _eta;

@@ -2,6 +2,9 @@
 
 namespace Llama.csharp
 {
+    /// <summary>
+    /// Настраиваемый с помощью TunableSamplerPipelineSettings конвеер семплинга
+    /// </summary>
     public class TunableSamplerPipeline : BaseSamplingPipeline
     {
 
@@ -20,7 +23,10 @@ namespace Llama.csharp
 
             return chain;
         }
-
+        /// <summary>
+        /// Применяет настройки заданные в _settings (TunableSamplerPipelineSettings) к создаваемому конвееру chain
+        /// </summary>
+        /// <param name="chain"></param>
         private void tuneChainFromSettings(SafeLLamaSamplerChainHandle chain)
         {
             foreach (ISampler sampler in _settings.Samplers)

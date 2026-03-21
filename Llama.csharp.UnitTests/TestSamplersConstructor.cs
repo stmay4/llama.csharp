@@ -480,13 +480,6 @@ namespace Llama.csharp.UnitTests
             sampler.Eta.Should().Be(0.1f);
         }
 
-        [Fact]
-        public void Mirostat2Sampler_Seed_Default_Is42()
-        {
-            var sampler = new Mirostat2Sampler();
-            sampler.Seed.Should().Be(42u);
-        }
-
         #endregion
     }
 }

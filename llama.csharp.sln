@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Llama.csharp.test_program",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Llama.csharp.UnitTests", "Llama.csharp.UnitTests\Llama.csharp.UnitTests.csproj", "{1E720BD0-56D1-4C8A-932F-9A481A143E7D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Llama.csharp.IntegrationTest", "Llama.csharp.IntegrationTest\Llama.csharp.IntegrationTest.csproj", "{520F1586-AA0D-4536-B0FB-B03C90AE445E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{1E720BD0-56D1-4C8A-932F-9A481A143E7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1E720BD0-56D1-4C8A-932F-9A481A143E7D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1E720BD0-56D1-4C8A-932F-9A481A143E7D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{520F1586-AA0D-4536-B0FB-B03C90AE445E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{520F1586-AA0D-4536-B0FB-B03C90AE445E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{520F1586-AA0D-4536-B0FB-B03C90AE445E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{520F1586-AA0D-4536-B0FB-B03C90AE445E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

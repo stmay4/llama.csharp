@@ -62,6 +62,29 @@ namespace Llama.csharp
             return new LLamaWeights(weights);
         }
 
+        public static NoAllocModelInfo LoadInfoNoAlloc(string modelPath)
+        {
+            ModelParams @params = new ModelParams(modelPath)
+            {
+                NoAlloc = true
+            };
+            using var pin = @params.ToLlamaModelParams(out var lparams);
+            var weights = SafeLlamaModelHandle.LoadFromFile(@params.ModelPath, lparams);
+
+            NoAllocModelInfo info = new NoAllocModelInfo()
+            {
+                Metadata = weights.ReadMetadata(),
+                ContextSize = weights.ContextSize,
+                SizeInBytes = weights.SizeInBytes,
+                ParameterCount = weights.ParameterCount,
+                EmbeddingSize = weights.EmbeddingSize
+            };
+
+            weights.Dispose();
+
+            return info;
+        }
+
         public void Dispose()
         {
             NativeHandle.Dispose();
@@ -77,6 +100,5 @@ namespace Llama.csharp
         {
             return new LLamaContext(this, @params);//, logger);
         }
-
     }
 }

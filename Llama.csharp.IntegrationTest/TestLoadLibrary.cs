@@ -2,14 +2,21 @@ using Xunit;
 using FluentAssertions;
 using Llama.csharp;
 using Llama.csharp.Native;
+using System.IO;
+using System;
 
 namespace Llama.csharp.IntegrationTest
 {
+
+    /// <summary>
+    /// CAUTION Every test should be called alone. CAUTION
+    /// </summary>
+
     [Trait("Category", "Integration")]
     [Trait("Category", "NativeLibraryLoad")]
     public class TestLoadLibrary
     {
-        private static readonly string _baseDllPath = "../../../llama_b7552/";
+        private static readonly string _baseDllPath = "./llama_b7552";
 
         /// <summary>
         /// Проверка загрузки нативных библиотек с неверными путями к файлам

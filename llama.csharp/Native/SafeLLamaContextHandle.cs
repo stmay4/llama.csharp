@@ -336,23 +336,24 @@ namespace Llama.csharp.Native
 
             var batchSize = checked((int)BatchSize);
 
-            // Evaluate the prompt, in chunks smaller than the max batch size
-            var n_left = tokens.Count;
             for (var i = 0; i < tokens.Count; i += batchSize)
             {
-                var n_eval = tokens.Count - i;
-                if (n_eval > batchSize)
-                    n_eval = batchSize;
+                // Вычисляем размер текущего куска: либо полный batchSize, либо остаток
+                var n_eval = Math.Min(batchSize, tokens.Count - i);
 
                 batch.Clear();
+
+                // Добавляем токены текущего куска
                 for (var j = 0; j < n_eval; j++)
-                    batch.Add(tokens[i + j], n_past++, id, i + j == tokens.Count - 1); //logits = true, if it is last token in batch
+                {
+                    // Флаг logits=true только для самого последнего токена ВСЕГО списка
+                    bool isLastToken = (i + j) == tokens.Count - 1;
+                    batch.Add(tokens[i + j], n_past++, id, isLastToken);
+                }
 
                 var returnCode = Decode(batch);
                 if (returnCode != DecodeResult.Ok)
-                    return (returnCode, n_left);
-
-                n_left -= n_eval;
+                    return (returnCode, tokens.Count - i); // Возвращаем количество НЕобработанных токенов
             }
 
             return (DecodeResult.Ok, 0);

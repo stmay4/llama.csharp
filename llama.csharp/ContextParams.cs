@@ -12,7 +12,7 @@ namespace Llama.csharp
 
         public uint UBatchSize { get; init; } = 512;
 
-        public uint SeqMax { get; init; } = 1;
+        public uint SeqMax { get; init; } = 1; //вроде макс 64
 
         public bool Embeddings { get; init; } = false;
 
@@ -54,7 +54,7 @@ namespace Llama.csharp
 
         public GGMLType? TypeV { get; init; }
 
-        public bool NoKqvOffload { get; init; }
+        public bool NoKqvOffload { get; init; } = true;
 
         public LlamaFlashAttentionType FlashAttention { get; init; } = LlamaFlashAttentionType.Auto;
 
@@ -63,6 +63,8 @@ namespace Llama.csharp
         public LLamaPoolingType PoolingType { get; init; } = LLamaPoolingType.Unspecified;
 
         public LLamaAttentionType AttentionType { get; init; } = LLamaAttentionType.Unspecified;
-        public bool KVunified { get; init; } = true;
+        public bool? KVunified { get; init; } = null;
+        public bool? OPoffload { get; init; } = null;
+        public bool? NoPerf { get; init; } = null;
     }
 }

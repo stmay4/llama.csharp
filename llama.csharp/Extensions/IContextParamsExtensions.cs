@@ -53,11 +53,14 @@ namespace Llama.csharp.Extensions
 
             result.embeddings = @params.Embeddings;
             result.offload_kqv = !@params.NoKqvOffload;
-            //result.no_perf = false;
-            //result.op_offload = false;
-            //result.swa_full = false;
+            
+            result.no_perf = @params.NoPerf ?? result.no_perf;
 
-            result.kv_unified = @params.KVunified; // если false то разделяет весь пул KV на колво последовательностей
+            result.op_offload = @params.OPoffload ?? result.op_offload;
+
+            //result.swa_full ;
+
+            result.kv_unified = @params.KVunified ?? result.kv_unified; // если false то разделяет весь пул KV на колво последовательностей
         }
 
         private static int Threads(int? value)

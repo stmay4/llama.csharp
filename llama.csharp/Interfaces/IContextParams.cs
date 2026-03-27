@@ -128,6 +128,13 @@ namespace Llama.csharp.Interfaces
         /// try to disable when n_seq_max > 1 for improved performance when the sequences do not share a large prefix
         /// ref: https://github.com/ggml-org/llama.cpp/pull/14363
         /// </summary>
-        bool KVunified { get; }
+        bool? KVunified { get; }
+        
+        /// <summary>
+        /// offload host tensor operations to device
+        /// </summary>
+        bool? OPoffload { get; }
+
+        bool? NoPerf {  get; }
     }
 }

@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Llama.csharp
 {
-    public class LlamaExecutor
+    public class LlamaExecutor : IDisposable
     {
         /// <summary>
         /// The context used by the executor.
@@ -32,11 +32,11 @@ namespace Llama.csharp
         /// </summary>
         private int _nextSequenceId = 0;
 
-        private readonly CancellationTokenSource _generationToken = new CancellationTokenSource();
+        private readonly CancellationTokenSource _executorLifeToken = new CancellationTokenSource();
 
         private readonly SemaphoreSlim _seqStateSemaphore = new SemaphoreSlim(1);
 
-        public LlamaExecutor(LLamaContext context)
+        internal LlamaExecutor(LLamaContext context)
         {
             Context = context;
             batchComposer = new SimpleBatchComposer();
@@ -49,7 +49,7 @@ namespace Llama.csharp
         /// <returns> created sequence Id, -1 if out of SeqMax </returns>
         public async Task<LLamaSeqId> CreateSequence()
         {
-            await _seqStateSemaphore.WaitAsync(_generationToken.Token); //блокировка для редактирования _prefillSeqs
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); //блокировка для редактирования _prefillSeqs
             try
             {
                 if (_nextSequenceId >= Context.Params.SeqMax) return (LLamaSeqId)(-1);
@@ -71,7 +71,7 @@ namespace Llama.csharp
 
         public async Task DeleteSequence(LLamaSeqId id)
         {
-            await _seqStateSemaphore.WaitAsync(_generationToken.Token); //блокировка для возможного редактирования _inferenceSeqs или _prefillSeqs
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); //блокировка для возможного редактирования _inferenceSeqs или _prefillSeqs
             try
             {
                 // удаление KV и удаление из _inferenceSeqs или _prefillSeqs если там, дефрагментация
@@ -125,33 +125,51 @@ namespace Llama.csharp
         /// <exception cref="IndexOutOfRangeException"></exception>
         public async Task<Dictionary<LLamaSeqId, Task>> ProcessPrompt(List<LLamaSeqId> seqIds, List<string> texts, List<bool> addBos, List<bool> special)
         {
+            // простые проверки аргументов, без блокировки
+            #region Checks 
+            if (seqIds == null || texts == null || addBos == null || special == null) throw new ArgumentNullException();
+            if (seqIds.Count == 0 || texts.Count == 0 || addBos.Count == 0 || special.Count == 0) throw new ArgumentException("Count is 0");
+            if (texts.Count < seqIds.Count) throw new Exception("There are few texts");
+            if (addBos.Count < seqIds.Count) throw new Exception("There are few addBos");
+            if (special.Count < seqIds.Count) throw new Exception("There are few special");
+            #endregion
+
             Dictionary<LLamaSeqId, Task> completions = new Dictionary<LLamaSeqId, Task>();
-            Dictionary<LLamaSeqId, List<LLamaToken>> embeds = new Dictionary<LLamaSeqId, List<LLamaToken>>();
+            Dictionary<LLamaSeqId, List<LLamaToken>?> embeds = new Dictionary<LLamaSeqId, List<LLamaToken>?>();
             //токенизация
             for (int i = 0; i < seqIds.Count; i++)
             {
-                embeds[seqIds[i]] = preprocessInputs(texts[i], addBos[i], special[i]);
+                if (string.IsNullOrEmpty(texts[i])) 
+                    embeds[seqIds[i]] = null;
+                else
+                    embeds[seqIds[i]] = preprocessInputs(texts[i], addBos[i], special[i]);
             }
 
-            await _seqStateSemaphore.WaitAsync(_generationToken.Token); //блокировка для редактирования _prefillSeqs
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); //блокировка для редактирования _prefillSeqs
             try
             {
-                if (texts.Count < seqIds.Count) throw new Exception("There are few texts");
-
                 foreach (LLamaSeqId seqId in seqIds)
                 {
-                    //проверки параметров
+                    //проверки параметров внутри блокировки, так как ресурсы общие
                     if (!_sequences.TryGetValue(seqId, out var seq)) throw new IndexOutOfRangeException($"There is not {seqId} sequence");
                     if (seq.InferState.State != SeqState.None) throw new IndexOutOfRangeException($"{seqId} sequence using in another place: {seq.InferState.State}");
+                    if (embeds[seqId] != null)
+                    {
+                        //заполнение Embeds последовательности
+                        seq.Embeds.AddRange(embeds[seqId]);
 
-                    //заполнение Embeds последовательности
-                    seq.Embeds.AddRange(embeds[seqId]);
+                        seq.InferState.State = SeqState.Prefill; //устанавливаем состояние в префил
+                        TaskCompletionSource tcs = new TaskCompletionSource();
+                        completions[seqId] = tcs.Task; //ждем завершения именно нашего процесса
 
-                    seq.InferState.State = SeqState.Prefill; //устанавливаем состояние в префил
-                    TaskCompletionSource tcs = new TaskCompletionSource();
-                    _prefillSeqs[seq] = tcs; //сохраняем для работы над префиллом в общем батче
-
-                    completions[seqId] = tcs.Task; //ждем завершения именно нашего процесса
+                        _prefillSeqs[seq] = tcs; //сохраняем для работы над префиллом в общем батче
+                    }
+                    else //если обрабатывать нечего
+                    {
+                        TaskCompletionSource tcs = new TaskCompletionSource();
+                        completions[seqId] = tcs.Task;
+                        tcs.SetResult();
+                    }
                 }
             }
             finally
@@ -168,6 +186,7 @@ namespace Llama.csharp
             Dictionary<LLamaSeqId, Channel<string>> channels = await Generate([seqId], [inferenceParam]);
             return channels[seqId];
         }
+        
         /// <summary>
         /// Генерация подпоследовательностей
         /// </summary>
@@ -178,9 +197,16 @@ namespace Llama.csharp
         /// <exception cref="IndexOutOfRangeException"></exception>
         public async Task<Dictionary<LLamaSeqId, Channel<string>>> Generate(List<LLamaSeqId> seqIds, List<IInferenceParams> inferenceParams)
         {
+            // простые проверки аргументов, без блокировки
+            #region Checks 
+            if (seqIds == null || inferenceParams == null) throw new ArgumentNullException();
+            if (seqIds.Count == 0 || inferenceParams.Count == 0) throw new ArgumentException("Count is 0");
+            if (inferenceParams.Count < seqIds.Count) throw new Exception("There are few inferenceParams");
+            #endregion
+
             Dictionary<LLamaSeqId, Channel<string>> channels = new Dictionary<LLamaSeqId, Channel<string>>();
 
-            await _seqStateSemaphore.WaitAsync(_generationToken.Token);
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
             try
             {
                 if (inferenceParams.Count < seqIds.Count) throw new Exception("There are few inferenceParams");
@@ -241,7 +267,7 @@ namespace Llama.csharp
 
                     try
                     {
-                        await seq.Value.Writer.WriteAsync(decoded, _generationToken.Token); //запись в канал последовательности
+                        await seq.Value.Writer.WriteAsync(decoded, _executorLifeToken.Token); //запись в канал последовательности
                     }
                     catch (Exception e)
                     {
@@ -381,7 +407,7 @@ namespace Llama.csharp
             //Update Data
             foreach (var item in decodedSeqsListIds)
             {
-                inferSeqs[item.Key].LastDecodedTokenPos++;
+                inferSeqs[item.Key].NextDecodedTokenPos++;
                 inferSeqs[item.Key].LastLogits = LLamaTokenDataArray.Create(Context.NativeHandle.GetLogitsIth(item.Value));
                 inferSeqs[item.Key].DecodedTokens.Add(inferSeqs[item.Key].Embeds.Last()); //записываем токены embeds как отдекодированные
                 inferSeqs[item.Key].Embeds.Clear();
@@ -390,7 +416,7 @@ namespace Llama.csharp
             }
             foreach (var item in prefilledSeqsTokenCount)
             {
-                prefillSeqs[item.Key].LastDecodedTokenPos += item.Value.count;
+                prefillSeqs[item.Key].NextDecodedTokenPos += item.Value.count;
                 prefillSeqs[item.Key].DecodedTokens.AddRange(prefillSeqs[item.Key].Embeds.GetRange(0, item.Value.count));
                 prefillSeqs[item.Key].Embeds.RemoveRange(0, item.Value.count);
                 if (prefillSeqs[item.Key].Embeds.Count == 0)
@@ -402,14 +428,14 @@ namespace Llama.csharp
 
         private async Task DecodingLoop()
         {
-            while (!_generationToken.Token.IsCancellationRequested) // один проход включает генерацию одного токена где надо, если надо и префилл сколько поместится в батч до размера батча
+            while (!_executorLifeToken.Token.IsCancellationRequested) // один проход включает генерацию одного токена где надо, если надо и префилл сколько поместится в батч до размера батча
             {
-                await _seqStateSemaphore.WaitAsync(_generationToken.Token); //блокировка для работы с контейнерами _inferenceSeqs и _prefillSeqs
+                await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); //блокировка для работы с контейнерами _inferenceSeqs и _prefillSeqs
                 try
                 {
                     if (_inferenceSeqs.Count == 0 && _prefillSeqs.Count == 0) //если делать нечего
                     {
-                        await Task.Delay(10, _generationToken.Token); // Ждём новые задачи
+                        await Task.Delay(10, _executorLifeToken.Token); // Ждём новые задачи
                         continue;
                     }
 
@@ -433,7 +459,7 @@ namespace Llama.csharp
         /// <returns></returns>
         public async Task StopSeqGeneration(LLamaSeqId id)
         {
-            await _seqStateSemaphore.WaitAsync(_generationToken.Token);
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
             try
             {
                 if (_sequences.TryGetValue(id, out var seq))
@@ -456,10 +482,56 @@ namespace Llama.csharp
         /// </summary>
         /// <param name="seqId"></param>
         /// <returns></returns>
-        public int? GetSequenceLastDecodedTokenPos(LLamaSeqId seqId)
+        public async Task<int?> GetSequenceNextDecodedTokenPos(LLamaSeqId seqId)
         {
-            _sequences.TryGetValue(seqId, out var seq);
-            return seq?.LastDecodedTokenPos;
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                _sequences.TryGetValue(seqId, out var seq);
+                return seq?.NextDecodedTokenPos;
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="seqId"></param>
+        /// <returns></returns>
+        public async Task<IReadOnlyList<LLamaToken>?> GetSequenceDecodedTokens(LLamaSeqId seqId)
+        {
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                _sequences.TryGetValue(seqId, out var seq);
+                return seq?.DecodedTokens;
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="seqId"></param>
+        /// <returns></returns>
+        public async Task<LLamaTokenDataArray?> GetSequenceLastLogits(LLamaSeqId seqId)
+        {
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                _sequences.TryGetValue(seqId, out var seq);
+                return seq?.LastLogits;
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
         }
 
         /// <summary>
@@ -499,8 +571,8 @@ namespace Llama.csharp
 
         public void Dispose()
         {
-            _generationToken.Cancel();
-            _generationToken?.Dispose();
+            _executorLifeToken.Cancel();
+            _executorLifeToken?.Dispose();
             _seqStateSemaphore.Dispose();
             Context?.Dispose();
         }
@@ -531,7 +603,7 @@ namespace Llama.csharp
         private class Sequence(LLamaContext context)
         {
             public required LLamaSeqId Id { get; init; }
-            public int LastDecodedTokenPos { get; set; } = 0;
+            public int NextDecodedTokenPos { get; set; } = 0;
             public LLamaTokenDataArray? LastLogits { get; set; } = null;
             public List<LLamaToken> DecodedTokens { get; set; } = new List<LLamaToken>();
             /// <summary>
@@ -603,7 +675,7 @@ namespace Llama.csharp
                         currentInferSeqId = _nextInferSeqBatchId + i;
                         currentInferSeqId = currentInferSeqId % inferSeqs.Count;
 
-                        batch.Add(inferSeqs[currentInferSeqId].Embeds.Last(), inferSeqs[currentInferSeqId].LastDecodedTokenPos, inferSeqs[currentInferSeqId].Id, true);
+                        batch.Add(inferSeqs[currentInferSeqId].Embeds.Last(), inferSeqs[currentInferSeqId].NextDecodedTokenPos, inferSeqs[currentInferSeqId].Id, true);
                         _lastInferSeqs[currentInferSeqId] = batchPos;
                         batchPos++; //увеличиваем значение позиции в батче
                     }
@@ -618,7 +690,7 @@ namespace Llama.csharp
                 Dictionary<int, int> currentRequiredLogitsIds = new Dictionary<int, int>(); // позиции на которых надо ставить Logits в true
                 for (int k = 0; k < prefillSeqs.Count; k++)
                 {
-                    currentRequiredLogitsIds[k] = prefillSeqs[k].LastDecodedTokenPos + prefillSeqs[k].Embeds.Count - 1;
+                    currentRequiredLogitsIds[k] = prefillSeqs[k].NextDecodedTokenPos + prefillSeqs[k].Embeds.Count - 1;
                 }
 
                 int currentPrefillSeqId = 0; // id текушей обрабатываемой последовательности из prefillSeqs
@@ -641,7 +713,7 @@ namespace Llama.csharp
                             {
 
                                 int count = _lastPrefilledCount[currentPrefillSeqId].count; //колво загруженных в батч в данном цикле
-                                int pos = prefillSeqs[currentPrefillSeqId].LastDecodedTokenPos + count; // позиция текущего загружаемого токена в последовательности, расчитанная из последней + колво
+                                int pos = prefillSeqs[currentPrefillSeqId].NextDecodedTokenPos + count; // позиция текущего загружаемого токена в последовательности, расчитанная из последней + колво
 
                                 batch.Add(
                                     prefillSeqs[currentPrefillSeqId].Embeds[count],

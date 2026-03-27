@@ -413,7 +413,7 @@ namespace Llama.csharp.IntegrationTest
 
                 tokens.AddRange(executor.Context.Tokenize(prompt, false, false).ToList());
                 int tokenCount = tokens.Count;
-                int? pos = await executor.GetSequenceLastDecodedTokenPos(main);
+                int? pos = await executor.GetSequenceNextDecodedTokenPos(main);
                 IReadOnlyList<LLamaToken>? decoded = await executor.GetSequenceDecodedTokens(main);
 
                 tokenCount.Should().Be(pos);
@@ -490,7 +490,7 @@ namespace Llama.csharp.IntegrationTest
 
                 tokens.AddRange(executor.Context.Tokenize(prompt).ToList());
                 int tokenCount = tokens.Count;
-                int? pos = await executor.GetSequenceLastDecodedTokenPos(s3);
+                int? pos = await executor.GetSequenceNextDecodedTokenPos(s3);
                 IReadOnlyList<LLamaToken>? decoded = await executor.GetSequenceDecodedTokens(s3);
 
                 tokenCount.Should().Be(pos);
@@ -571,7 +571,7 @@ namespace Llama.csharp.IntegrationTest
 
                 tokens.AddRange(executor.Context.Tokenize(prompt).ToList());
                 int tokenCount = tokens.Count;
-                int? pos = await executor.GetSequenceLastDecodedTokenPos(s3);
+                int? pos = await executor.GetSequenceNextDecodedTokenPos(s3);
                 IReadOnlyList<LLamaToken>? decoded = await executor.GetSequenceDecodedTokens(s3);
 
                 tokenCount.Should().Be(pos);

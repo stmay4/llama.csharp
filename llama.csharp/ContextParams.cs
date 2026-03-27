@@ -6,19 +6,19 @@ namespace Llama.csharp
 {
     public class ContextParams : IContextParams
     {
-        public uint? ContextSize { get; set; } = 0;
+        public uint? ContextSize { get; init; } = 0;
 
-        public uint BatchSize { get; set; } = 512;
+        public uint BatchSize { get; init; } = 512;
 
-        public uint UBatchSize { get; set; } = 512;
+        public uint UBatchSize { get; init; } = 512;
 
-        public uint SeqMax { get; set; } = 1;
+        public uint SeqMax { get; init; } = 1;
 
-        public bool Embeddings { get; set; } = false;
+        public bool Embeddings { get; init; } = false;
 
-        public float? RopeFrequencyBase { get; set; }
+        public float? RopeFrequencyBase { get; init; }
 
-        public float? RopeFrequencyScale { get; set; }
+        public float? RopeFrequencyScale { get; init; }
 
 
         /// <summary>
@@ -27,41 +27,42 @@ namespace Llama.csharp
         /// Задает раскодировку для StreamingDecoder, который используется при инференсе 
         /// для превращения токенов в байты заданной кодировки
         /// </summary>
-        private string EncodingName { get; set; } = Encoding.UTF8.WebName;
+        private string EncodingName { get; init; } = Encoding.UTF8.WebName;
         public Encoding Encoding
         {
             get => Encoding.GetEncoding(EncodingName);
-            set => EncodingName = value.WebName;
+            init => EncodingName = value.WebName;
         }
 
-        public int? Threads { get; set; }
+        public int? Threads { get; init; }
 
-        public int? BatchThreads { get; set; }
+        public int? BatchThreads { get; init; }
 
-        public float? YarnExtrapolationFactor { get; set; }
+        public float? YarnExtrapolationFactor { get; init; }
 
-        public float? YarnAttentionFactor { get; set; }
+        public float? YarnAttentionFactor { get; init; }
 
-        public float? YarnBetaFast { get; set; }
+        public float? YarnBetaFast { get; init; }
 
-        public float? YarnBetaSlow { get; set; }
+        public float? YarnBetaSlow { get; init; }
 
-        public uint? YarnOriginalContext { get; set; }
+        public uint? YarnOriginalContext { get; init; }
 
-        public RopeScalingType? YarnScalingType { get; set; }
+        public RopeScalingType? YarnScalingType { get; init; }
 
-        public GGMLType? TypeK { get; set; }
+        public GGMLType? TypeK { get; init; }
 
-        public GGMLType? TypeV { get; set; }
+        public GGMLType? TypeV { get; init; }
 
-        public bool NoKqvOffload { get; set; }
+        public bool NoKqvOffload { get; init; }
 
-        public LlamaFlashAttentionType FlashAttention { get; set; } = LlamaFlashAttentionType.Auto;
+        public LlamaFlashAttentionType FlashAttention { get; init; } = LlamaFlashAttentionType.Auto;
 
-        public float? DefragThreshold { get; set; }
+        public float? DefragThreshold { get; init; }
 
-        public LLamaPoolingType PoolingType { get; set; } = LLamaPoolingType.Unspecified;
+        public LLamaPoolingType PoolingType { get; init; } = LLamaPoolingType.Unspecified;
 
-        public LLamaAttentionType AttentionType { get; set; } = LLamaAttentionType.Unspecified;
+        public LLamaAttentionType AttentionType { get; init; } = LLamaAttentionType.Unspecified;
+        public bool KVunified { get; init; } = true;
     }
 }

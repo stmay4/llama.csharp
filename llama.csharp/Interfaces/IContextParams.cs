@@ -110,7 +110,6 @@ namespace Llama.csharp.Interfaces
 
         /// <summary>
         /// defragment the KV cache if holes/size &gt; defrag_threshold, Set to &lt; 0 to disable (default)
-        /// defragment the KV cache if holes/size &gt; defrag_threshold, Set to <see langword="null"/> or &lt; 0 to disable (default)
         /// </summary>
         float? DefragThreshold { get; }
 
@@ -123,5 +122,12 @@ namespace Llama.csharp.Interfaces
         /// Attention type to use for embeddings
         /// </summary>
         LLamaAttentionType AttentionType { get; }
+
+        /// <summary>
+        /// use a unified buffer across the input sequences when computing the attention
+        /// try to disable when n_seq_max > 1 for improved performance when the sequences do not share a large prefix
+        /// ref: https://github.com/ggml-org/llama.cpp/pull/14363
+        /// </summary>
+        bool KVunified { get; }
     }
 }

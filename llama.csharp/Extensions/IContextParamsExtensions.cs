@@ -56,8 +56,8 @@ namespace Llama.csharp.Extensions
             //result.no_perf = false;
             //result.op_offload = false;
             //result.swa_full = false;
-            //result.kv_unified = false;
 
+            result.kv_unified = @params.KVunified; // если false то разделяет весь пул KV на колво последовательностей
         }
 
         private static int Threads(int? value)

@@ -10,8 +10,5 @@ namespace Llama.csharp
     {
         public required IReadOnlyDictionary<string, string> Metadata { get; init; }
         public required int ContextSize { get; init; }
-        public required ulong SizeInBytes { get; init; }
-        public required ulong ParameterCount { get; init; }
-        public required int EmbeddingSize { get; init; }
     }
 }

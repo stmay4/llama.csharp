@@ -68,7 +68,7 @@ namespace Llama.csharp
         /// <param name="params"></param>
         /// <param name="logger"></param>
         /// <exception cref="ObjectDisposedException"></exception>
-        public LLamaContext(LLamaWeights model, IContextParams @params)//, ILogger? logger = null)
+        internal LLamaContext(LLamaWeights model, IContextParams @params)//, ILogger? logger = null)
         {
             if (model.NativeHandle.IsClosed)
                 throw new ObjectDisposedException("Cannot create context, model weights have been disposed");

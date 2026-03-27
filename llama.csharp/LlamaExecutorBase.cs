@@ -7,7 +7,7 @@ namespace Llama.csharp
     /// <summary>
     /// The base class for custom LLama executors.
     /// </summary>
-    public abstract class LlamaExecutorBase
+    public abstract class LlamaExecutorBase: IDisposable
     {
         /// <summary>
         /// The tokens that were already processed by the model.
@@ -227,6 +227,11 @@ namespace Llama.csharp
             {
                 yield return token;
             }
+        }
+
+        public void Dispose()
+        {
+            Context.Dispose();
         }
 
         /// <summary>

@@ -14,10 +14,6 @@ namespace Llama.csharp
         /// </summary>
         protected int _pastTokensCount; // n_past
         /// <summary>
-        /// The tokens that were consumed by the model during the current inference.
-        /// </summary>
-        protected int _consumedTokensCount; // n_consume
-        /// <summary>
         /// 
         /// </summary>
         protected int _n_session_consumed;
@@ -33,10 +29,6 @@ namespace Llama.csharp
         /// A container of the tokens to be processed and after processed.
         /// </summary>
         protected List<LLamaToken> _embeds = new(); // embd
-        /// <summary>
-        /// A container for the tokens of input.
-        /// </summary>
-        protected List<LLamaToken> _embed_inps = new();
         /// <summary>
         /// 
         /// </summary>
@@ -92,7 +84,6 @@ namespace Llama.csharp
             //_logger = logger;
             Context = context;
             _pastTokensCount = 0;
-            _consumedTokensCount = 0;
             _n_session_consumed = 0;
             _last_n_tokens = new FixedSizeQueue<LLamaToken>((int)Context.ContextSize);
             _decoder = new StreamingTokenDecoder(context);
@@ -170,7 +161,7 @@ namespace Llama.csharp
         {
             inferenceParams ??= new InferenceParams();
 
-            _embeds.Clear();
+            //_embeds.Clear();
 
             PreprocessInputs(text, addBos, special);
 
@@ -183,7 +174,6 @@ namespace Llama.csharp
 
             var args = new InferStateArgs
             {
-                Antiprompts = [.. inferenceParams.AntiPrompts],
                 RemainedTokens = inferenceParams.MaxTokens,
                 ReturnValue = false,
                 StopGeneration = false,
@@ -212,6 +202,7 @@ namespace Llama.csharp
                     _decoder.AddRange(_embeds);
                     var decoded = _decoder.Read();
                     args.LastOutput = decoded;
+                    args.ReturnValue = false;
                     yield return decoded;
                 }
 
@@ -243,10 +234,6 @@ namespace Llama.csharp
         /// </summary>
         protected class InferStateArgs
         {
-            /// <summary>
-            /// 
-            /// </summary>
-            public IList<string>? Antiprompts { get; set; }
             /// <summary>
             /// Tokens count remained to be used. (n_remain)
             /// </summary>

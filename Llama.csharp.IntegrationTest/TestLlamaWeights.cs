@@ -2,10 +2,12 @@
 using Llama.csharp;
 using Llama.csharp.Exceptions;
 using Llama.csharp.Native;
+using Microsoft.VisualStudio.TestPlatform.Utilities;
 using System;
 using System.IO;
 using System.Reflection.Metadata;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Llama.csharp.IntegrationTest
 {
@@ -14,7 +16,13 @@ namespace Llama.csharp.IntegrationTest
     public class TestLlamaWeights
     {
         private static readonly string _baseDllPath = "./llama_b7552";
-        private static readonly string _baseModelPath = "./test_model";
+        private static readonly string _baseModelDirPath = "./test_model";
+        private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf";
+        private readonly ITestOutputHelper _output;
+        public TestLlamaWeights(ITestOutputHelper output)
+        {
+            _output = output;
+        }
 
         /// <summary>
         /// Проверка загрузки модели с неверно указанным путем к модели
@@ -42,7 +50,7 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(Path.Combine(_baseModelPath, "NonExistent.gguf")){};
+            ModelParams parametres = new ModelParams(Path.Combine(_baseModelDirPath, "NonExistent.gguf")){};
 
             var act = () =>
             {
@@ -78,7 +86,7 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(Path.Combine(_baseModelPath, "strangeModel.txt")) { };
+            ModelParams parametres = new ModelParams(Path.Combine(_baseModelDirPath, "strangeModel.txt")) { };
 
             var act = () =>
             {
@@ -114,9 +122,7 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(Path.Combine(_baseModelPath, "Baguettotron-Q8_0.gguf")) 
-            {
-            };
+            ModelParams parametres = new ModelParams(_modelPath) { };
 
             var act = () =>
             {
@@ -127,9 +133,6 @@ namespace Llama.csharp.IntegrationTest
             act.Should().NotThrow<Exception>();
         }
 
-        /// <summary>
-        /// Проверка загрузки метаданных модели без загрузки весов
-        /// </summary>
         [Fact]
         public void LlamaWeights_LoadInfoNoAlloc_WithValidPath()
         {
@@ -153,17 +156,15 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3]]);
             #endregion
 
-            NoAllocModelInfo info = 
-                LLamaWeights.LoadInfoNoAlloc(Path.Combine(_baseModelPath, "Baguettotron-Q8_0.gguf"));
+            NoAllocModelInfo info =
+                LLamaWeights.LoadInfoNoAlloc(_modelPath);
 
             info.Metadata.Count.Should().BeGreaterThan(0);
+            info.ContextSize.Should().BeGreaterThan(0);
         }
 
-        /// <summary>
-        /// Проверка верного создания контекста модели
-        /// </summary>
         [Fact]
-        public void LlamaWeights_CreateContext_Valid()
+        public void LlamaWeights_LoadInfoNoAlloc_InvalidPath()
         {
             #region init
             var requiredFiles = new[]
@@ -185,12 +186,71 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(Path.Combine(_baseModelPath, "Baguettotron-Q8_0.gguf")){};
+            var act = () => LLamaWeights.LoadInfoNoAlloc(Path.Combine(_baseModelDirPath, "NonExistent.gguf"));
+
+            act.Should().Throw<FileNotFoundException>();
+        }
+
+        [Fact]
+        public void LlamaWeights_LoadInfoNoAlloc_WithInvalidModelFile_Throws()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, "ggml-cpu-x64.dll")
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]]);
+            #endregion
+
+            var act = () => LLamaWeights.LoadInfoNoAlloc(Path.Combine(_baseModelDirPath, "strangeModel.txt"));
+
+            act.Should().Throw<LoadWeightsFailedException>();
+        }
+
+        /// <summary>
+        /// Проверка верного создания исполнителя модели
+        /// </summary>
+        [Fact]
+        public void LlamaWeights_CreateExecutor_Valid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, "ggml-cpu-x64.dll")
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
             var act = () =>
             {
                 LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
-                LLamaContext context = model.CreateContext(new ContextParams() { ContextSize = 1024 });
-                context.Dispose();
+                LlamaExecutor executor = model.CreateExecutor(new ContextParams() { ContextSize = 1024 });
+                executor.Dispose();
                 model.Dispose();
             };
 
@@ -198,10 +258,10 @@ namespace Llama.csharp.IntegrationTest
         }
 
         /// <summary>
-        /// Проверка неверного создания контекста выгруженной модели
+        /// Проверка неверного создания исполнителя выгруженной модели
         /// </summary>
         [Fact]
-        public void LlamaWeights_CreateContext_Invalid()
+        public void LlamaWeights_CreateExecutor_Invalid()
         {
             #region init
             var requiredFiles = new[]
@@ -223,13 +283,89 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(Path.Combine(_baseModelPath, "Baguettotron-Q8_0.gguf")) { };
+            ModelParams parametres = new ModelParams(_modelPath) { };
             var act = () =>
             {
                 LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
                 model.Dispose();
-                LLamaContext context = model.CreateContext(new ContextParams() { ContextSize = 1024 });
-                context?.Dispose();
+                LlamaExecutor executor = model.CreateExecutor(new ContextParams() { ContextSize = 1024 });
+                executor.Dispose();
+            };
+
+            act.Should().Throw<ObjectDisposedException>();
+        }
+
+        /// <summary>
+        /// Проверка верного создания исполнителя модели
+        /// </summary>
+        [Fact]
+        public void LlamaWeights_CreateOneSeqExecutor_Valid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, "ggml-cpu-x64.dll")
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            var act = () =>
+            {
+                LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+                OneSeqLlamaExecutor executor = model.CreateOneSeqExecutor(new ContextParams() { ContextSize = 1024 });
+                executor.Dispose();
+                model.Dispose();
+            };
+
+            act.Should().NotThrow();
+        }
+
+        /// <summary>
+        /// Проверка неверного создания исполнителя выгруженной модели
+        /// </summary>
+        [Fact]
+        public void LlamaWeights_CreateOneSeqExecutor_Invalid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, "ggml-cpu-x64.dll")
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            var act = () =>
+            {
+                LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+                model.Dispose();
+                OneSeqLlamaExecutor executor = model.CreateOneSeqExecutor(new ContextParams() { ContextSize = 1024 });
+                executor.Dispose();
             };
 
             act.Should().Throw<ObjectDisposedException>();

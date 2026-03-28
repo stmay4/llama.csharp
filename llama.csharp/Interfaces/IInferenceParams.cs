@@ -6,32 +6,32 @@ namespace Llama.csharp.Interfaces
         /// <summary>
         /// number of tokens to keep from initial prompt
         /// </summary>
-        public int TokensKeep { get; set; } // елси реализую словарь сообщений и он будет работать то не нужно
+        public int TokensKeep { get; } // елси реализую словарь сообщений и он будет работать то не нужно
 
         /// <summary>
         /// how many new tokens to predict (n_predict), set to -1 to inifinitely generate response
         /// until it complete.
         /// </summary>
-        public int MaxTokens { get; set; }
+        public int MaxTokens { get; }
 
         /// <summary>
 		/// if true print bos, eos and etc.
 		/// </summary>
-        public bool DecodeSpecialTokens { get; set; }
+        public bool DecodeSpecialTokens { get; }
 
         /// <summary>
 		/// automatically stop ingerence when eog received. It happens in PostProcess
 		/// </summary>
-        public bool AutoStopFromEOG { get; set; }
+        public bool AutoStopFromEOG { get; }
 
         /// <summary>
         /// Sequences where the model will stop generating further tokens.
         /// </summary>
-        public IReadOnlyList<string> AntiPrompts { get; set; }
+        public IReadOnlyList<string> AntiPrompts { get; }
 
         /// <summary>
         /// Set a custom sampling pipeline to use.
         /// </summary>
-        ISamplingPipeline SamplingPipeline { get; set; }
+        ISamplingPipeline SamplingPipeline { get; }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Llama.csharp.Exceptions;
+using Llama.csharp.Extensions;
 using Llama.csharp.Interfaces;
 using Llama.csharp.Native;
 using System;
@@ -19,22 +20,45 @@ namespace Llama.csharp
         /// </summary>
         public LLamaContext Context { get; }
 
+        /// <summary>
+        /// Составитель батчей
+        /// Изменение и получение данных только под _seqStateSemaphore
+        /// </summary>
         private IBatchComposer batchComposer;
 
         /// <summary>
-        /// all currently using sequences
+        /// all life sequences
+        /// Изменение и получение данных только под _seqStateSemaphore
         /// </summary>
         private Dictionary<LLamaSeqId, Sequence> _sequences = new Dictionary<LLamaSeqId, Sequence>();
-        private Dictionary<Sequence, Channel<string>> _inferenceSeqs = new Dictionary<Sequence, Channel<string>>();
-        private Dictionary<Sequence, TaskCompletionSource> _prefillSeqs = new Dictionary<Sequence, TaskCompletionSource>();
+        
         /// <summary>
-        /// counter
+        /// контейнер последовательностей в стадии генерации
+        /// Изменение и получение данных только под _seqStateSemaphore
+        /// </summary>
+        private Dictionary<Sequence, Channel<string>> _inferenceSeqs = new Dictionary<Sequence, Channel<string>>();
+
+        /// <summary>
+        /// контейнер последовательностей в стадии префила
+        /// Изменение и получение данных только под _seqStateSemaphore
+        /// </summary>
+        private Dictionary<Sequence, TaskCompletionSource> _prefillSeqs = new Dictionary<Sequence, TaskCompletionSource>();
+        
+        /// <summary>
+        /// счетчик id последовательностей
+        /// Изменение и получение данных только под _seqStateSemaphore
         /// </summary>
         private int _nextSequenceId = 0;
 
         private readonly CancellationTokenSource _executorLifeToken = new CancellationTokenSource();
 
         private readonly SemaphoreSlim _seqStateSemaphore = new SemaphoreSlim(1);
+
+        /// <summary>
+        /// Сигнал для вечного цикла декода
+        /// Set и Reset только под _seqStateSemaphore
+        /// </summary>
+        private readonly ManualResetEventSlim _workSignal = new ManualResetEventSlim(false);
 
         internal LlamaExecutor(LLamaContext context)
         {
@@ -152,7 +176,7 @@ namespace Llama.csharp
                 {
                     //проверки параметров внутри блокировки, так как ресурсы общие
                     if (!_sequences.TryGetValue(seqId, out var seq)) throw new IndexOutOfRangeException($"There is not {seqId} sequence");
-                    if (seq.InferState.State != SeqState.None) throw new IndexOutOfRangeException($"{seqId} sequence using in another place: {seq.InferState.State}");
+                    if (seq.InferState.State != SeqState.None) throw new Exception($"{seqId} sequence using in another place: {seq.InferState.State}");
                     if (embeds[seqId] != null)
                     {
                         //заполнение Embeds последовательности
@@ -163,6 +187,8 @@ namespace Llama.csharp
                         completions[seqId] = tcs.Task; //ждем завершения именно нашего процесса
 
                         _prefillSeqs[seq] = tcs; //сохраняем для работы над префиллом в общем батче
+
+                        _workSignal.Set(); // устанавливаем сигнал о работе, при этом цикл декода будет ждать выхода из блокировки данного метода
                     }
                     else //если обрабатывать нечего
                     {
@@ -218,7 +244,8 @@ namespace Llama.csharp
 
                     //проверки
                     if (seq == null) throw new IndexOutOfRangeException($"There is not {seqId} sequence");
-                    if (seq.InferState.State != SeqState.None) throw new IndexOutOfRangeException($"{seqId} sequence using in another place: {seq.InferState.State}");
+                    if (seq.InferState.State != SeqState.None) throw new Exception($"{seqId} sequence using in another place: {seq.InferState.State}");
+                    if (seq.InferParams.MaxTokens == 0) throw new Exception($"For prefill use ProcessPrompt");
 
                     //инициализация для инференса
                     seq.InferState = new InferStateArgs
@@ -236,6 +263,8 @@ namespace Llama.csharp
                     var channel = Channel.CreateUnbounded<string>();
                     _inferenceSeqs[seq] = channel;
                     channels[seq.Id] = channel;
+
+                    _workSignal.Set(); // устанавливаем сигнал о работе, при этом цикл декода будет ждать выхода из блокировки данного метода
 
                     inferenceParamsCounter++; //счетчик для перебора inferenceParams
                 }
@@ -426,23 +455,30 @@ namespace Llama.csharp
             }
         }
 
+        /// <summary>
+        /// Вечный цикл обработки батчей
+        /// </summary>
+        /// <returns></returns>
         private async Task DecodingLoop()
         {
             while (!_executorLifeToken.Token.IsCancellationRequested) // один проход включает генерацию одного токена где надо, если надо и префилл сколько поместится в батч до размера батча
             {
+                await _workSignal.WaitAsync(_executorLifeToken.Token);//проверка isset с быстрым возвратом внутри waitasync
+                
                 await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); //блокировка для работы с контейнерами _inferenceSeqs и _prefillSeqs
                 try
                 {
                     if (_inferenceSeqs.Count == 0 && _prefillSeqs.Count == 0) //если делать нечего
                     {
-                        await Task.Delay(10, _executorLifeToken.Token); // Ждём новые задачи
-                        continue;
+                        _workSignal.Reset(); //сбрасываем сигнал о наличии работы
                     }
+                    else
+                    {
+                        await decodeInternal(_inferenceSeqs.Keys.ToList(), _prefillSeqs.Keys.ToList());
 
-                    await decodeInternal(_inferenceSeqs.Keys.ToList(), _prefillSeqs.Keys.ToList());
-
-                    await postProcessInfer();
-                    postProcessPrefill();
+                        await postProcessInfer();
+                        postProcessPrefill();
+                    }
                 }
                 finally
                 {
@@ -538,7 +574,9 @@ namespace Llama.csharp
         /// подсчет количества использованных KV мест
         /// </summary>
         /// <returns></returns>
-        private int usedBySeqsContextKVsCount()
+        private int usedBySeqsContextKVsCount() // надо понимать что проверка должна быть как при инициации префила, где нам уже ясно количество токенов префила,
+                                                // так и при составлении батча в условно бесконечной генерации. Проверку в батче можно делать с условием не DecodedTokens, а планов на префилл
+                                                // или пусть пользователь сам следит, а код просто стопается при конце места, но что делать с состоянием - оно сломается, если забить на конец
         {
             int count = 0;
             foreach (Sequence seq in _sequences.Values)

@@ -1,4 +1,5 @@
-﻿using Llama.csharp.Extensions;
+﻿using Llama.csharp.Exceptions;
+using Llama.csharp.Extensions;
 using Llama.csharp.Interfaces;
 using Llama.csharp.Native;
 using System.Text.RegularExpressions;
@@ -61,6 +62,31 @@ namespace Llama.csharp
             using var pin = @params.ToLlamaModelParams(out var lparams);
             var weights = SafeLlamaModelHandle.LoadFromFile(@params.ModelPath, lparams);
             return new LLamaWeights(weights);
+        }
+
+        public static async Task<LLamaWeights> LoadFromFileAsync(IModelParams @params, CancellationToken cancellationToken = default)
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    // Проверяем отмену перед запуском тяжелой операции
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var weights = LoadFromFile(@params);
+
+                    // Проверяем отмену после завершения (на случай, если нужно прервать дальнейшую логику)
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    return weights;
+                }
+                catch
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    throw;
+                }
+            }, cancellationToken);
         }
 
         /// <summary>

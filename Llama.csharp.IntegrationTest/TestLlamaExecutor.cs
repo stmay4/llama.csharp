@@ -352,6 +352,14 @@ namespace Llama.csharp.IntegrationTest
                 };
 
                 await act4.Should().ThrowAsync<Exception>().WithMessage("*texts*");
+
+                var act5 = async () =>
+                {
+                    Dictionary<LLamaSeqId, Task> prefill = await executor.ProcessPrompt([(LLamaSeqId)5], ["test"], [true], [true]);
+
+                };
+
+                await act5.Should().ThrowAsync<IndexOutOfRangeException>().WithMessage("*5*");
             }
             finally
             {
@@ -359,6 +367,180 @@ namespace Llama.csharp.IntegrationTest
                 model.Dispose();
             }
 
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_ProcessPrompt_SequenceAlreadyInPrefill()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _cpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+
+            ContextParams ctxParams = new ContextParams()
+            {
+                SeqMax = 2
+            };
+
+            LlamaExecutor executor = model.CreateExecutor(ctxParams);
+
+            try
+            {
+                LLamaSeqId main = await executor.CreateSequence();
+
+                var act = async () =>
+                {
+                    Task prefill1 = await executor.ProcessPrompt(main, "test prompt");
+                    Task prefill2 = await executor.ProcessPrompt(main, "test prompt"); //должен вызвать ошибку, так как последовательность уже в префилле
+
+                    await prefill1;
+                    await prefill2;
+                };
+
+                await act.Should().ThrowAsync<Exception>().WithMessage("*sequence using in another place*");
+
+                //var act7 = async () =>
+                //{
+                //    Task t1 = executor.ProcessPrompt(main, "test prompt");
+                //    Task t2 = executor.ProcessPrompt(main, "test prompt"); //должен вызвать ошибку, так как последовательность уже в префилле, и не вызвать Race Condition
+                //    await Task.WhenAll(t1, t2);
+                //};
+
+                //await act7.Should().ThrowAsync<Exception>().WithMessage("*sequence using in another place*");
+            }
+            finally
+            {
+                executor.Dispose();
+                model.Dispose();
+            }
+
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_ProcessPrompt_SequenceAlreadyInPrefill_WithoutRaceCondition()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _cpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+
+            ContextParams ctxParams = new ContextParams()
+            {
+                SeqMax = 2
+            };
+
+            LlamaExecutor executor = model.CreateExecutor(ctxParams);
+
+            try
+            {
+                LLamaSeqId main = await executor.CreateSequence();
+
+                var act = async () =>
+                {
+                    Task t1 = executor.ProcessPrompt(main, "test prompt");
+                    Task t2 = executor.ProcessPrompt(main, "test prompt"); //должен вызвать ошибку, так как последовательность уже в префилле, и не вызвать Race Condition
+                    await Task.WhenAll(t1, t2);
+                };
+
+                await act.Should().ThrowAsync<Exception>().WithMessage("*sequence using in another place*");
+            }
+            finally
+            {
+                executor.Dispose();
+                model.Dispose();
+            }
+        }
+
+
+
+        [Fact]
+        public async Task LlamaExecutor_ProcessPrompt_OneSeq_EmptyPrompt()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _cpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+
+            LlamaExecutor executor = model.CreateExecutor(new ContextParams());
+
+            LLamaSeqId main = await executor.CreateSequence();
+
+            string prompt = "";
+
+            var watcher = Stopwatch.StartNew();
+
+            Task prefill = await executor.ProcessPrompt(main, prompt, false, false);
+            await prefill;
+
+            watcher.Stop();
+            _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
+
+
+            int? pos = await executor.GetSequenceNextDecodedTokenPos(main);
+            IReadOnlyList<LLamaToken>? decoded = await executor.GetSequenceDecodedTokens(main);
+
+            pos.Should().Be(0);
+            decoded.Count.Should().Be(0);
+
+            executor.Dispose();
+            model.Dispose();
         }
 
         [Fact]
@@ -391,6 +573,7 @@ namespace Llama.csharp.IntegrationTest
             ContextParams ctxParams = new ContextParams()
             {
                 SeqMax = 1,
+                //KVunified = true,
                 NoPerf = false
             };
 
@@ -464,6 +647,7 @@ namespace Llama.csharp.IntegrationTest
             ContextParams ctxParams = new ContextParams()
             {
                 SeqMax = 5,
+                KVunified = true,
                 NoPerf = false
             };
 
@@ -592,34 +776,82 @@ namespace Llama.csharp.IntegrationTest
             model.Dispose();
         }
 
-        //        using System;
-        //        using System.Threading.Channels;
-        //        using System.Threading.Tasks;
+        //[Fact]
+        //public async Task LlamaExecutor_CloneSeqBeginning_FiveSeq()
+        //{
+        //    #region init
+        //    var requiredFiles = new[]
+        //    {
+        //        Path.Combine(_baseDllPath, "llama.dll"),
+        //        Path.Combine(_baseDllPath, "ggml.dll"),
+        //        Path.Combine(_baseDllPath, "ggml-base.dll"),
+        //        Path.Combine(_baseDllPath, _cpuBackend)
+        //    };
 
-        //        public static async Task Run()
-        //        {
-        //            var channel = Channel.CreateUnbounded<string>();
-        //            // Производитель
-        //            var producer = Task.Run(async () => {
-        //                for (int i = 0; i < 5; i++)
-        //                {
-        //                    var message = $"Message {i}";
-        //                    await channel.Writer.WriteAsync(message);
-        //                    Console.WriteLine($"Produced: {message}");
-        //                    await Task.Delay(100); // Имитировать работу
-        //                }
-        //                channel.Writer.Complete();
-        //            });
-        //            // Потребитель
-        //            var consumer = Task.Run(async () => {
-        //                await foreach (var message in channel.Reader.ReadAllAsync())
-        //                {
-        //                    Console.WriteLine($"Consumed: {message}");
-        //                    await Task.Delay(150); // Имитировать обработку
-        //                }
-        //            });
-        //            await Task.WhenAll(producer, consumer);
-        //            Console.WriteLine("Обработка завершена.");
-        //        }
+        //    foreach (var file in requiredFiles)
+        //    {
+        //        File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+        //    }
+
+        //    LlamaCpp.Initialize(requiredFiles[0],
+        //                        requiredFiles[1],
+        //                        requiredFiles[2],
+        //                       [requiredFiles[3]]);
+        //    #endregion
+
+        //    ModelParams parametres = new ModelParams(_modelPath) { };
+
+        //    LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+
+        //    ContextParams ctxParams = new ContextParams()
+        //    {
+        //        SeqMax = 5,
+        //        KVunified = true,
+        //        NoPerf = false
+        //    };
+
+
+        //    LlamaExecutor executor = model.CreateExecutor(ctxParams);
+
+        //    LLamaSeqId s1 = await executor.CreateSequence();
+        //    LLamaSeqId s2 = await executor.CreateSequence();
+        //    LLamaSeqId s3 = await executor.CreateSequence();
+        //    LLamaSeqId s4 = await executor.CreateSequence();
+        //    LLamaSeqId s5 = await executor.CreateSequence();
+
+        //    string prompt = "prompt is here prompt is here prompt is here prompt is here prompt is here prompt is here " +
+        //        "prompt is here prompt is here prompt is here prompt is here prompt is here prompt is here";
+
+        //    List<LLamaToken> tokens = new List<LLamaToken>();
+
+        //    var watcher = Stopwatch.StartNew();
+
+        //    for (int k = 0; k < 10; k++) //конечно это надо префилить за раз, здесь только для теста
+        //    {
+        //        //Dictionary<LLamaSeqId, Task> prefills = await executor.ProcessPrompt([s1, s2, s3, s4, s5], [prompt, prompt, prompt, prompt, prompt], [false, false, false, false, false], [false, false, false, false, false]);
+        //        //await Task.WhenAll(prefills.Values.ToArray());
+
+        //        //tokens.AddRange(executor.Context.Tokenize(prompt).ToList());
+        //        //int tokenCount = tokens.Count;
+        //        //int? pos = await executor.GetSequenceNextDecodedTokenPos(s3);
+        //        //IReadOnlyList<LLamaToken>? decoded = await executor.GetSequenceDecodedTokens(s3);
+
+        //        //tokenCount.Should().Be(pos);
+        //        //for (int i = 0; i < tokenCount; i++)
+        //        //{
+        //        //    tokens[i].Should().Be(decoded[i]);
+        //        //}
+        //    }
+
+        //    LLamaPerfContextTimings timings = executor.Context.NativeHandle.GetTimings();
+        //    _output.WriteLine((timings.Eval.TotalMilliseconds + timings.PromptEval.TotalMilliseconds).ToString() + " eval ms");
+
+        //    watcher.Stop();
+        //    _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
+
+
+        //    executor.Dispose();
+        //    model.Dispose();
+        //}
     }
 }

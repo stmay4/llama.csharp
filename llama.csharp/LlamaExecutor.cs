@@ -2,14 +2,7 @@
 using Llama.csharp.Extensions;
 using Llama.csharp.Interfaces;
 using Llama.csharp.Native;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace Llama.csharp
 {
@@ -235,8 +228,6 @@ namespace Llama.csharp
             await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
             try
             {
-                if (inferenceParams.Count < seqIds.Count) throw new Exception("There are few inferenceParams");
-
                 int inferenceParamsCounter = 0;
                 foreach (LLamaSeqId seqId in seqIds)
                 {
@@ -257,6 +248,7 @@ namespace Llama.csharp
                     seq.InferParams = inferenceParams[inferenceParamsCounter];
                     seq.AntipromptProc.ClearString();
                     seq.AntipromptProc.SetAntiprompts(inferenceParams[inferenceParamsCounter].AntiPrompts ?? []);
+                    seq.Decoder.DecodeSpecialTokens = seq.InferParams.DecodeSpecialTokens;
                     seq.Embeds.Clear(); //на всякий
 
                     //создание канала куда возвращаем генерацию данной последовательности
@@ -288,7 +280,6 @@ namespace Llama.csharp
                     seq.Key.InferState.TokenSampledAndDecoded = false;
 
                     // Преобразуем токен в строку
-                    seq.Key.Decoder.DecodeSpecialTokens = seq.Key.InferParams.DecodeSpecialTokens;
                     seq.Key.Decoder.Add(seq.Key.DecodedTokens.Last());
                     var decoded = seq.Key.Decoder.Read();
 
@@ -333,7 +324,7 @@ namespace Llama.csharp
             foreach ((Sequence, Channel<string>) seq in seqsToRemove)
             {
                 _inferenceSeqs.Remove(seq.Item1);
-                endInferenceChannel(seq);
+                endInference(seq);
             }
         }
 
@@ -342,7 +333,7 @@ namespace Llama.csharp
         /// </summary>
         /// <param name="seq"></param>
         /// <param name="ch"></param>
-        private void endInferenceChannel((Sequence seq, Channel<string> ch) inferenceSeq)
+        private void endInference((Sequence seq, Channel<string> ch) inferenceSeq)
         {
             inferenceSeq.seq.InferState.State = SeqState.None;
             inferenceSeq.ch.Writer.Complete();
@@ -423,7 +414,7 @@ namespace Llama.csharp
             IReadOnlyDictionary<int, (int count, int pos)> prefilledSeqsTokenCount = batchComposer.GetPrefillSeqsTokenCount();
 
             // ERROR
-            if (res != 0)
+            if (res != DecodeResult.Ok)
             {
                 foreach (var item in decodedSeqsListIds)
                 {
@@ -586,7 +577,6 @@ namespace Llama.csharp
             return count;
         }
 
-
         /// <summary>
         /// After running out of the context, take some tokens from the original prompt and recompute the logits in batches.
         /// </summary>
@@ -609,63 +599,11 @@ namespace Llama.csharp
 
         public void Dispose()
         {
-            _executorLifeToken.Cancel();
+            _executorLifeToken?.Cancel();
+            _workSignal?.Dispose();
+            _seqStateSemaphore?.Dispose();
             _executorLifeToken?.Dispose();
-            _seqStateSemaphore.Dispose();
             Context?.Dispose();
-        }
-
-        /// <summary>
-        /// State arguments that are used in single inference
-        /// </summary>
-        private class InferStateArgs
-        {
-            /// <summary>
-            /// Lock help
-            /// </summary>
-            public SeqState State { get; set; } = SeqState.None;
-            /// <summary>
-            /// Sequence must be postprocessed
-            /// </summary>
-            public bool TokenSampledAndDecoded { get; set; } = false;
-            /// <summary>
-            /// Tokens count remained to be used. (n_remain)
-            /// </summary>
-            public int RemainedTokens { get; set; }
-            /// <summary>
-            /// 
-            /// </summary>
-            public bool AutoStopFromEOG { get; set; }
-        }
-
-        private class Sequence(LLamaContext context)
-        {
-            public required LLamaSeqId Id { get; init; }
-            public int NextDecodedTokenPos { get; set; } = 0;
-            public LLamaTokenDataArray? LastLogits { get; set; } = null;
-            public List<LLamaToken> DecodedTokens { get; set; } = new List<LLamaToken>();
-            /// <summary>
-            /// токены для обработки декодом
-            /// </summary>
-            public List<LLamaToken> Embeds = new();
-
-            /// <summary>
-            /// Tracks anti-prompts across streamed output.
-            /// </summary>
-            public required AntipromptProcessor AntipromptProc { get; init; }
-
-            public InferStateArgs InferState { get; set; } = new InferStateArgs();
-
-            public IInferenceParams InferParams { get; set; } = new InferenceParams();
-
-            public readonly StreamingTokenDecoder Decoder = new StreamingTokenDecoder(context);
-        }
-
-        private enum SeqState
-        {
-            None,
-            Generation,
-            Prefill
         }
 
         private interface IBatchComposer

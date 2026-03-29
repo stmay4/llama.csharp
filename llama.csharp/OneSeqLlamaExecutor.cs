@@ -4,169 +4,297 @@ using Llama.csharp.Native;
 
 namespace Llama.csharp
 {
-    public class OneSeqLlamaExecutor : LlamaExecutorBase
+    public class OneSeqLlamaExecutor: IDisposable
     {
-        public class LlamaExecutorState : LlamaBaseState
+        /// <summary>
+        /// The context used by the executor.
+        /// </summary>
+        public LLamaContext Context { get; }
+
+        private Sequence _mainSeq;
+
+        private readonly CancellationTokenSource _executorLifeToken = new CancellationTokenSource();
+
+        private CancellationTokenSource _generationToken = new CancellationTokenSource();
+
+        private readonly SemaphoreSlim _seqStateSemaphore = new SemaphoreSlim(1);
+
+        public OneSeqLlamaExecutor(LLamaContext context)
         {
-
-            //     For preprocess all prompt in some count of batches (if prompt is long)
-            public bool IsPromptRun { get; set; }
-        }
-
-        LLamaBatch _lastBatch = new LLamaBatch();
-
-        //
-        // Параметры:
-        //   context:
-        //
-        //   logger:
-        public OneSeqLlamaExecutor(LLamaContext context)//, ILogger? logger = null)
-            : base(context)//, logger)
-        {
-        }
-
-        public override LlamaBaseState GetStateData()
-        {
-            LlamaExecutorState state = new()
+            Context = context;
+            _mainSeq = new Sequence(context)
             {
-                ConsumedSessionCount = _n_session_consumed,
-                Embeds = _embeds.ToArray(),
-                LastTokens = _last_n_tokens.ToArray(),
-                MatchingSessionTokensCount = _n_matching_session_tokens,
-                PastTokensCount = _pastTokensCount,
-                SessionFilePath = _pathSession,
-                SessionTokens = _session_tokens.ToArray(),
-                LastTokensCapacity = _last_n_tokens.Capacity,
+                Id = (LLamaSeqId)0,
+                AntipromptProc = new AntipromptProcessor()
             };
-            return state;
         }
 
-        protected override void PreprocessInputs(string? text, bool addBos, bool special)
+        /// <summary>
+        /// Preprocess the inputs before the inference for given Sequence.
+        /// </summary>
+        /// <param name="text"></param>
+        private List<LLamaToken> preprocessInputs(string text, bool addBos, bool special)
         {
-            if (text != null)
-            {
-                LLamaToken[] array = Context.Tokenize(text, addBos, special);
-                _embeds.AddRange(array);
-            }
+            return Context.Tokenize(text, addBos, special).ToList();
         }
 
-        protected override async Task ProcessInputs(IInferenceParams inferenceParams) // заменить inferenceParams на ContextOverflowParams
+        /// <summary>
+        /// Префил 
+        /// </summary>
+        /// <param name="seqIds"></param>
+        /// <param name="texts"></param>
+        /// <param name="addBos"></param>
+        /// <param name="special"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        /// <exception cref="IndexOutOfRangeException"></exception>
+        public async Task ProcessPrompt(string text, bool addBos = false, bool special = true)
         {
-            for (int i = 0; i < _embeds.Count; i++)
-            {
-                _last_n_tokens.Enqueue(_embeds[i]);
-            }
+            // простые проверки аргументов, без блокировки
+            #region Checks 
 
-            if (_embeds.Count > 0)
+            #endregion
+
+            List<LLamaToken>? embeds;
+
+            if (string.IsNullOrEmpty(text))
+                embeds = null;
+            else
+                embeds = preprocessInputs(text, addBos, special);
+
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); //блокировка для редактирования _prefillSeqs
+            try
             {
-                //проверка выхода за пределы контекста
-                if (_pastTokensCount + _embeds.Count > Context.ContextSize)
+                if (embeds != null)
                 {
-                    //int tokensKeep = inferenceParams.TokensKeep;
-                    
-                    //HandleRunOutOfContext(tokensKeep); //обработка
+                    _mainSeq.InferState.State = SeqState.Prefill;
+                    //заполнение Embeds последовательности
+                    _mainSeq.Embeds.AddRange(embeds);
 
-                    // OR BREAK ЗДЕСЬ
-                }
-                
-                _lastBatch = new LLamaBatch();
+                    LLamaBatch batch = new LLamaBatch();
 
-                (DecodeResult, int, int) tuple2 = await Context.DecodeAsync(_embeds, LLamaSeqId.Zero, _lastBatch, _pastTokensCount);
-                _pastTokensCount = tuple2.Item3;
-                if (tuple2.Item1 != 0)
-                {
-                    throw new LLamaDecodeError(tuple2.Item1);
-                }
-            }
+                    (DecodeResult, int, int) tuple = await Context.DecodeAsync(_mainSeq.Embeds, _mainSeq.Id, batch, _mainSeq.NextDecodedTokenPos);
 
-            _embeds.Clear();
-        }
+                    if (tuple.Item1 != DecodeResult.Ok)
+                    {
+                        //tuple.Item2; хранит число неотдекоденных
+                        throw new LLamaDecodeError(tuple.Item1);
+                    }
 
-        //
-        // Сводка:
-        //     Return whether to break the generation.
-        //
-        // Параметры:
-        //   inferenceParams:
-        //
-        //   args:
-
-        //TRUE здесь заканчивает генерацию
-        protected override void PostProcess(IInferenceParams inferenceParams, InferStateArgs args) //проверка, что пора заканчивать
-        {
-
-            if (!string.IsNullOrEmpty(args.LastOutput) && AntipromptProcessor.Add(args.LastOutput))
-            {
-                args.StopGeneration = true;
-                //return Task.FromResult<(bool, IReadOnlyList<string>)>((true, []));
-            }
-
-            if (args.AutoStopFromEOG)
-            {
-                if (_embeds.Last().IsEndOfGeneration(Context.Vocab))
-                {
-                    args.StopGeneration = true;
+                    _mainSeq.NextDecodedTokenPos = tuple.Item3;
+                    _mainSeq.DecodedTokens.AddRange(_mainSeq.Embeds);
+                    _mainSeq.Embeds.Clear();
+                    _mainSeq.LastLogits = LLamaTokenDataArray.Create(Context.NativeHandle.GetLogitsIth(batch.TokenCount - 1));
+                    _mainSeq.InferState.State = SeqState.None;
                 }
             }
-
-            if (args.RemainedTokens <= 0 && inferenceParams.MaxTokens != -1)
+            finally
             {
-                //args.RemainedTokens = inferenceParams.MaxTokens;
-                args.StopGeneration = true;
+                _seqStateSemaphore.Release();
             }
         }
 
-        protected override async Task InferenceInternal(IInferenceParams inferenceParams, InferStateArgs args) // заменить на отдельно SAPMLE, отдельно DECODE, и decode поставить после возврата токена
-                                                                                                               // для улучшения времени первого токена
+        private string postProcessInfer() //проверка, что пора заканчивать
         {
-            if (_lastBatch.TokenCount == 0) { args.StopGeneration = true; } // последний обработанный батч был пустой, нечего сэмплировать
-            else if (!args.StopGeneration)
+            _mainSeq.InferState.TokenSampledAndDecoded = false;
+
+            // Преобразуем токен в строку
+            _mainSeq.Decoder.Add(_mainSeq.DecodedTokens.Last());
+            var decoded = _mainSeq.Decoder.Read();
+
+            // если сгенерирован антипромпт
+            if (!string.IsNullOrEmpty(decoded) && _mainSeq.AntipromptProc.Add(decoded))
             {
-                LLamaToken llamaToken = inferenceParams.SamplingPipeline.Sample(Context.NativeHandle, _lastBatch.TokenCount - 1); //производим sample на основе итогового внутреннего состояния последнего декодированного токена
-
-                _last_n_tokens.Enqueue(llamaToken); //добавляем токен в качестве отсемплированного для отслеживания в этой оболочке (антипромпт и тп)
-                _embeds.Add(llamaToken); // добавляем в контейнер для декода моделью только что выбранный токен
-
-                args.RemainedTokens--;
-                args.ReturnValue = true; // токен отсемплирован, есть что возвращать (именно возврат текста, соответствующего токену)
+                _mainSeq.InferState.State = SeqState.None;
             }
 
-            _lastBatch = new LLamaBatch();
-
-            if (_embeds.Count > 0)
+            if (_mainSeq.InferState.AutoStopFromEOG)
             {
-                if (_pastTokensCount + _embeds.Count > Context.ContextSize)
+                // если сгенерирован конец
+                if (_mainSeq.DecodedTokens.Last().IsEndOfGeneration(Context.Vocab))
                 {
-                    //int tokensKeep = inferenceParams.TokensKeep;
-                    
-                    //HandleRunOutOfContext(tokensKeep);
-
-                    // OR BREAK ЗДЕСЬ
-                }
-
-                (DecodeResult, int, int) tuple2 = await Context.DecodeAsync(_embeds, LLamaSeqId.Zero, _lastBatch, _pastTokensCount); // в прямом смысле проход декодера, расчет KV для батча
-                _pastTokensCount = tuple2.Item3;
-                if (tuple2.Item1 != 0)
-                {
-                    throw new LLamaDecodeError(tuple2.Item1);
+                    _mainSeq.InferState.State = SeqState.None;
                 }
             }
-        }
-        public LLamaToken? SampleOneTokenWithoutDecode(IInferenceParams inferenceParams) // бесполезный метод, а может и нет. Дает новый токен за 2 мс, если запрос уже обработан. Тогда как InferenceInternal сразу его и обрабатывает, что ухудшает время преовго токена
-        {
-            LLamaToken? token = null;
-            if (_lastBatch.TokenCount > 0)
+
+            // если кончились токены
+            if (_mainSeq.InferState.RemainedTokens <= 0 && _mainSeq.InferParams.MaxTokens != -1)
             {
-                token = inferenceParams.SamplingPipeline.Sample(Context.NativeHandle, _lastBatch.TokenCount - 1);
+                _mainSeq.InferState.State = SeqState.None;
             }
-            return token;
-        } // полезно в случае, когда контекст имеет вид [данные]+[вопрос с требованием печати одного токена да/нет и т.п.] мы получаем ответ с помощью sample
-        //без его обработки декодом, далее удаляем блок с вопросом (с помощью функции удаления с изменением текущей позиции для новых токенов)
-        //и можем добавлять новые данные в [данные] для новых вопросов. Быстро так как большая часть контекста обработана
-        public Span<float> GetLogits()
-        {
-            var logits = Context.NativeHandle.GetLogitsIth(_lastBatch.TokenCount - 1);
-            return logits;
+
+            return decoded;
         }
+
+        public async IAsyncEnumerable<string> Generate(IInferenceParams inferenceParams)
+        {
+            // простые проверки аргументов, без блокировки
+            #region Checks 
+            if (inferenceParams == null) throw new ArgumentNullException();
+            #endregion
+
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                //проверки
+                if (_mainSeq.InferParams.MaxTokens == 0) throw new Exception($"For prefill use ProcessPrompt");
+
+                _mainSeq.InferState.State = SeqState.Generation;
+
+                //инициализация для инференса
+                _mainSeq.InferState = new InferStateArgs
+                {
+                    State = SeqState.Generation,
+                    RemainedTokens = inferenceParams.MaxTokens,
+                    AutoStopFromEOG = inferenceParams.AutoStopFromEOG
+                };
+                _mainSeq.InferParams = inferenceParams;
+                _mainSeq.AntipromptProc.ClearString();
+                _mainSeq.AntipromptProc.SetAntiprompts(inferenceParams.AntiPrompts ?? []);
+                _mainSeq.Decoder.DecodeSpecialTokens = _mainSeq.InferParams.DecodeSpecialTokens;
+                _mainSeq.Embeds.Clear(); //на всякий
+
+                while (_mainSeq.InferState.State == SeqState.Generation)
+                {
+                    if (_generationToken.IsCancellationRequested) break;
+
+                    #region Sampling
+                    if (_mainSeq.LastLogits == null) throw new Exception($"sequence {_mainSeq.Id} is empty");
+
+                    LLamaToken llamaToken;
+                    using (var handle = LLamaTokenDataArrayNative.Create((LLamaTokenDataArray)_mainSeq.LastLogits, out var native))
+                    {
+                        _mainSeq.InferParams.SamplingPipeline.Apply(ref native);
+                        llamaToken = native.Data[(int)native.Selected].ID;
+                        _mainSeq.InferParams.SamplingPipeline.Accept(llamaToken);
+                    }
+
+                    _mainSeq.Embeds.Add(llamaToken); // добавляем в контейнер для декода моделью только что выбранный токен
+                    #endregion
+
+                    #region Decode
+                    LLamaBatch batch = new LLamaBatch();
+                    batch.Add(llamaToken, _mainSeq.NextDecodedTokenPos, _mainSeq.Id, true);
+
+                    DecodeResult res = await Context.DecodeAsync(batch);
+
+
+                    if (res != DecodeResult.Ok)
+                    {
+                        //по сути состояние не сбивается, можно пробовать снова без восстановления
+                        throw new LLamaDecodeError(res);
+                    }
+
+                    _mainSeq.NextDecodedTokenPos++;
+                    _mainSeq.LastLogits = LLamaTokenDataArray.Create(Context.NativeHandle.GetLogitsIth(batch.TokenCount - 1));
+                    _mainSeq.DecodedTokens.Add(_mainSeq.Embeds.Last()); //записываем токены embeds как отдекодированные
+                    _mainSeq.Embeds.Clear();
+                    _mainSeq.InferState.TokenSampledAndDecoded = true; // надо делать постпроцессинг
+                    _mainSeq.InferState.RemainedTokens--; // уменьшить колво оставшихся для генерации токенов
+                    #endregion
+
+                    string decoded = postProcessInfer();
+                    yield return decoded;
+                }
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
+        }
+
+        public void StopGeneration()
+        {
+            _generationToken?.Cancel();
+            _generationToken?.Dispose();
+            _generationToken = new CancellationTokenSource();
+        }
+
+        public void Dispose()
+        {
+            _generationToken?.Cancel();
+            _executorLifeToken?.Cancel();
+            _generationToken?.Dispose();
+            _seqStateSemaphore?.Dispose();
+            _executorLifeToken?.Dispose();
+            Context?.Dispose();
+
+        }
+
+
+        /// <summary>
+        /// Может пригодиться для клонирования контекста между последовательностями
+        /// </summary>
+        /// <param name="seqId"></param>
+        /// <returns></returns>
+        public async Task<int> GetNextDecodedTokenPos()
+        {
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                return _mainSeq.NextDecodedTokenPos;
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="seqId"></param>
+        /// <returns></returns>
+        public async Task<IReadOnlyList<LLamaToken>?> GetDecodedTokens()
+        {
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                return _mainSeq.DecodedTokens;
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="seqId"></param>
+        /// <returns></returns>
+        public async Task<LLamaTokenDataArray?> GetLastLogits()
+        {
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                return _mainSeq.LastLogits;
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
+        }
+
+        public string SampleOneTokenWithoutDecode(IInferenceParams inferenceParams)
+        {
+            if (_mainSeq.LastLogits == null) throw new Exception($"sequence {_mainSeq.Id} is empty");
+
+            LLamaToken llamaToken;
+            using (var handle = LLamaTokenDataArrayNative.Create((LLamaTokenDataArray)_mainSeq.LastLogits, out var native))
+            {
+                _mainSeq.InferParams.SamplingPipeline.Apply(ref native);
+                llamaToken = native.Data[(int)native.Selected].ID;
+                //без Accept токена
+            }
+            string textPiece = "";
+            _mainSeq.Decoder.Add(llamaToken);
+            textPiece = _mainSeq.Decoder.Read();
+            return textPiece;
+        } 
+        // полезно в случае, когда контекст имеет вид [данные]+[вопрос с требованием печати одного токена да/нет и т.п.] мы получаем ответ с помощью sample
+        ////без его обработки декодом, далее удаляем блок с вопросом (с помощью функции удаления с изменением текущей позиции для новых токенов)
+        ////и можем добавлять новые данные в [данные] для новых вопросов. Быстро так как большая часть контекста обработана
+
     }
 }

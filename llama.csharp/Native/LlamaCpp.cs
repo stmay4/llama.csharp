@@ -63,7 +63,13 @@ namespace Llama.csharp.Native
 
         #region delegates
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate void ggml_backend_load([MarshalAs(UnmanagedType.LPStr)] string backendPath);
+        private delegate IntPtr ggml_backend_load([MarshalAs(UnmanagedType.LPStr)] string backendPath);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr ggml_backend_init_by_type(GGMLBackendDevType type, IntPtr @params);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr ggml_backend_init_best();
 
         /// <summary>
         /// Get the number of available backend devices
@@ -80,13 +86,15 @@ namespace Llama.csharp.Native
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate IntPtr ggml_backend_dev_get(nuint i);
 
-        
+
 
         #endregion
 
         #region functions
 
         private static ggml_backend_load _ggml_backend_load;
+        private static ggml_backend_init_best _ggml_backend_init_best;
+        private static ggml_backend_init_by_type _ggml_backend_init_by_type;
         private static ggml_backend_dev_count _ggml_backend_dev_count;
         private static ggml_backend_dev_get _ggml_backend_dev_get;
 
@@ -160,6 +168,8 @@ namespace Llama.csharp.Native
                 _llama_supports_mlock = GetLibFunction<llama_supports_mlock>(_llamaHandle, "llama_supports_mlock");
 
                 _ggml_backend_load = GetLibFunction<ggml_backend_load>(_ggmlHandle, "ggml_backend_load");
+                _ggml_backend_init_by_type = GetLibFunction<ggml_backend_init_by_type>(_ggmlHandle, "ggml_backend_init_by_type");
+                _ggml_backend_init_best = GetLibFunction<ggml_backend_init_best>(_ggmlHandle, "ggml_backend_init_best");
                 _ggml_backend_dev_count = GetLibFunction<ggml_backend_dev_count>(_ggmlHandle, "ggml_backend_dev_count");
                 _ggml_backend_dev_get = GetLibFunction<ggml_backend_dev_get>(_ggmlHandle, "ggml_backend_dev_get");
 
@@ -171,15 +181,29 @@ namespace Llama.csharp.Native
                 LoadContextFunctions();
                 LoadSamplerFunctions();
 
-                // Выполняем инициализацию
-                _llama_max_devices();
-                _llama_backend_init();
+                
+                
 
                 // Загружаем бэкенды
                 foreach (string backend in backendPaths)
                 {
-                    _ggml_backend_load(backend);
+                    IntPtr ptr = _ggml_backend_load(backend);
+                    if (ptr == IntPtr.Zero) 
+                    {
+                        throw new Exception($"Loading backend {backend} fail");
+                    }
                 }
+                //if (bestCPU)
+                //{
+                //    IntPtr ptr = _ggml_backend_init_best();
+                //    if (ptr == IntPtr.Zero)
+                //    {
+                //        throw new Exception($"Loading best CPU backend fail");
+                //    }
+                //}
+                
+                // Выполняем инициализацию
+                _llama_backend_init();
 
                 _initialized = true;
             }
@@ -390,7 +414,7 @@ namespace Llama.csharp.Native
 
 
 
-        
+
         ///// <summary>
         ///// Apply chat template. Inspired by hf apply_chat_template() on python.
         ///// </summary>

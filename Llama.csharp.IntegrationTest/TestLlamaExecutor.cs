@@ -17,7 +17,9 @@ namespace Llama.csharp.IntegrationTest
         private static readonly string _baseDllPath = "./llama_b7552";
         private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf";
         private static readonly string _heavyModelPath = @"D:\LLMmodels\Qwen3-4B-Thinking-2507-Claude-4.5-Opus-High-Reasoning-Distill.q8_0.gguf";
-        private static readonly string _cpuBackend = "ggml-cpu-alderlake.dll";
+        private static readonly string _сpuBackend = "ggml-cpu-alderlake.dll";
+        private static readonly string _badCpuBackend = "ggml-cpu-x64.dll";
+        private static readonly string _sseCpuBackend = "ggml-cpu-sse42.dll";
 
         private readonly ITestOutputHelper _output;
         public TestLlamaExecutor(ITestOutputHelper output)
@@ -34,7 +36,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -73,7 +75,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -112,7 +114,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -151,7 +153,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -195,7 +197,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -242,7 +244,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -292,7 +294,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -378,7 +380,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -444,7 +446,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -500,7 +502,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -552,7 +554,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -626,7 +628,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -700,7 +702,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -778,7 +780,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -859,7 +861,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -937,7 +939,7 @@ namespace Llama.csharp.IntegrationTest
                 Path.Combine(_baseDllPath, "llama.dll"),
                 Path.Combine(_baseDllPath, "ggml.dll"),
                 Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _cpuBackend)
+                Path.Combine(_baseDllPath, _сpuBackend)
             };
 
             foreach (var file in requiredFiles)
@@ -949,6 +951,94 @@ namespace Llama.csharp.IntegrationTest
                                 requiredFiles[1],
                                 requiredFiles[2],
                                [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_heavyModelPath) { };
+
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+
+            ContextParams ctxParams = new ContextParams()
+            {
+                ContextSize = 4000,
+                SeqMax = 2,
+                NoPerf = true,
+                Threads = Environment.ProcessorCount
+            };
+
+            LlamaExecutor executor = model.CreateExecutor(ctxParams);
+            LLamaSeqId s1 = await executor.CreateSequence();
+            LLamaSeqId s2 = await executor.CreateSequence();
+
+            InferenceParams inferenceParams = new InferenceParams()
+            {
+                MaxTokens = 100,
+                AutoStopFromEOG = false,
+                DecodeSpecialTokens = true,
+                AntiPrompts = []
+            };
+
+            var watcher = Stopwatch.StartNew();
+
+            string prompt = "<system> You are a technical documentation assistant. " +
+                "Your tone is clear, concise, and professional. Avoid markdown, lists, or bullet points unless explicitly requested. " +
+                "Use plain English and short sentences. </system> \n\n\n" +
+                "<user> Explain in one paragraph what an API rate limit is, why it exists, and what happens when a user exceeds it. </user> \n\n\n" +
+                "<assistant> ";
+            //Dictionary<LLamaSeqId, Task> prefills = await executor.ProcessPrompt([s1, s2],[prompt, prompt], executor.Context.Vocab.ShouldAddBOS);
+            //await Task.WhenAll(prefills.Values.ToArray());
+
+            await await executor.ProcessPrompt(s1, prompt, executor.Context.Vocab.ShouldAddBOS);
+
+            LLamaPos endpos = await executor.GetSequenceNextDecodedTokenPos(s1) ?? 0;
+
+            await executor.CopySeqPrefixTo(s1, [s2], endpos);
+
+            Channel<string> ch1 = await executor.Generate(s1, inferenceParams);
+            Channel<string> ch2 = await executor.Generate(s2, inferenceParams);
+
+            string genText = "";
+            await foreach (var text in ch1.Reader.ReadAllAsync())
+            {
+                genText += text;
+            }
+            await foreach (var text in ch2.Reader.ReadAllAsync())
+            {
+                genText += text;
+            }
+            _output.WriteLine(genText);
+
+            watcher.Stop();
+            _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_SpecCPU_Generate_TwoSeq_SharePrefill_AllThreads()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend),
+                Path.Combine(_baseDllPath, _badCpuBackend),
+                Path.Combine(_baseDllPath, _sseCpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3], //за загруженный считается первый CPU бэкенд
+                                requiredFiles[4],
+                                requiredFiles[5]]);
             #endregion
 
             ModelParams parametres = new ModelParams(_heavyModelPath) { };

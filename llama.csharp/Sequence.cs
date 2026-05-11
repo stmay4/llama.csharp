@@ -29,6 +29,19 @@ namespace Llama.csharp
         public IInferenceParams InferParams { get; set; } = new InferenceParams();
 
         public readonly StreamingTokenDecoder Decoder = new StreamingTokenDecoder(context);
+
+        internal void ClearSequenceTokens()
+        {
+            NextDecodedTokenPos = 0;
+            LastLogits = null;
+            DecodedTokens.Clear();
+        }
+        internal void CopyStateFrom(Sequence seq)
+        {
+            NextDecodedTokenPos = seq.NextDecodedTokenPos;
+            LastLogits = seq.LastLogits;
+            DecodedTokens.AddRange(seq.DecodedTokens);
+        }
     }
 
     /// <summary>

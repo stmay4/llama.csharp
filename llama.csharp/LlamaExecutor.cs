@@ -91,9 +91,13 @@ namespace Llama.csharp
             await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); //блокировка для возможного редактирования _inferenceSeqs или _prefillSeqs
             try
             {
-                // удаление KV и удаление из _inferenceSeqs или _prefillSeqs если там, дефрагментация
-
-                _sequences.Remove(id);
+                if (_sequences.TryGetValue(id, out var seq))
+                {
+                    Context.NativeHandle.SeqMemoryRemoveAll(id);
+                    
+                    _sequences.Remove(id);
+                }
+                else throw new ArgumentException($"sequence {id} not exist");
             }
             finally
             {
@@ -475,6 +479,66 @@ namespace Llama.csharp
                 {
                     _seqStateSemaphore.Release();
                 }
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="srcId"></param>
+        /// <param name="targetIds"></param>
+        /// <param name="endPos"> не включительно</param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentException"></exception>
+        /// <exception cref="Exception"></exception>
+        public async Task CopySeqPrefixTo(LLamaSeqId srcId, List<LLamaSeqId> targetIds, LLamaPos endPos)
+        {
+            if (targetIds == null) throw new ArgumentNullException();
+            if (targetIds.Count == 0) throw new ArgumentException("Count is 0");
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                if (_sequences.TryGetValue(srcId, out var srcSeq))
+                {
+                    if (srcSeq.InferState.State != SeqState.None) 
+                        throw new Exception($"{srcId} sequence using in another place: {srcSeq.InferState.State}");
+                    foreach (LLamaSeqId id in targetIds)
+                    {
+                        if (!_sequences.TryGetValue(id, out var seq))
+                            throw new ArgumentException($"sequence {id} not exist");
+                        else
+                        {
+                            if (seq.InferState.State != SeqState.None)
+                                throw new Exception($"{id} sequence using in another place: {seq.InferState.State}");
+                        }
+                    }
+
+                    if ((int)endPos < 1) throw new ArgumentException("End position must be 1 or greater");
+
+                    if ((int)endPos > srcSeq.NextDecodedTokenPos) throw new ArgumentException("End position must be lower or equal tokens count+1");
+
+                    //копирование
+                    foreach (LLamaSeqId id in targetIds)
+                    {
+                        if (_sequences.TryGetValue(id, out var seq))
+                        {
+                            if (seq.NextDecodedTokenPos != 0)
+                            {
+                                Context.NativeHandle.SeqMemoryRemoveAll(id);
+                                seq.ClearSequenceTokens();
+                            }
+
+                            Context.NativeHandle.SeqMemoryCopy(srcId, id, 0, endPos);
+                            seq.CopyStateFrom(srcSeq);
+                        }
+                    }
+                }
+                else throw new ArgumentException($"sequence {srcId} not exist");
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
             }
         }
 

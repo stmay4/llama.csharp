@@ -15,7 +15,6 @@ namespace Llama.csharp.IntegrationTest
     public class TestLlamaExecutor
     {
         private static readonly string _baseDllPath = "./llama_b7552";
-        private static readonly string _baseModelDirPath = "./test_model";
         private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf";
         private static readonly string _cpuBackend = "ggml-cpu-alderlake.dll";
 
@@ -544,7 +543,7 @@ namespace Llama.csharp.IntegrationTest
         }
 
         [Fact]
-        public async Task LlamaExecutor_ProcessPrompt_OneSeq()
+        public async Task LlamaExecutor_ProcessPrompt_OneSeq_KVUnified_False()
         {
             #region init
             var requiredFiles = new[]
@@ -573,7 +572,7 @@ namespace Llama.csharp.IntegrationTest
             ContextParams ctxParams = new ContextParams()
             {
                 SeqMax = 1,
-                //KVunified = true,
+                KVunified = false,
                 NoPerf = false
             };
 
@@ -589,7 +588,81 @@ namespace Llama.csharp.IntegrationTest
 
             var watcher = Stopwatch.StartNew();
 
-            for (int k = 0; k < 10; k++) //конечно это надо префилить за раз, здесь только для теста
+            for (int k = 0; k < 50; k++) //конечно это надо префилить за раз, здесь только для теста
+            {
+                Task prefill = await executor.ProcessPrompt(main, prompt, false, false);
+                await prefill;
+
+                tokens.AddRange(executor.Context.Tokenize(prompt, false, false).ToList());
+                int tokenCount = tokens.Count;
+                int? pos = await executor.GetSequenceNextDecodedTokenPos(main);
+                IReadOnlyList<LLamaToken>? decoded = await executor.GetSequenceDecodedTokens(main);
+
+                tokenCount.Should().Be(pos);
+                for (int i = 0; i < tokenCount; i++)
+                {
+                    tokens[i].Should().Be(decoded[i]);
+                }
+            }
+
+            LLamaPerfContextTimings timings = executor.Context.NativeHandle.GetTimings();
+            _output.WriteLine((timings.Eval.TotalMilliseconds + timings.PromptEval.TotalMilliseconds).ToString() + " eval ms");
+
+            watcher.Stop();
+            _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
+
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_ProcessPrompt_OneSeq_KVUnified_True()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _cpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+
+            ContextParams ctxParams = new ContextParams()
+            {
+                SeqMax = 1,
+                KVunified = true,
+                NoPerf = false
+            };
+
+
+            LlamaExecutor executor = model.CreateExecutor(ctxParams);
+
+            LLamaSeqId main = await executor.CreateSequence();
+
+            string prompt = "prompt is here prompt is here prompt is here prompt is here prompt is here prompt is here " +
+                "prompt is here prompt is here prompt is here prompt is here prompt is here prompt is here";
+
+            List<LLamaToken> tokens = new List<LLamaToken>();
+
+            var watcher = Stopwatch.StartNew();
+
+            for (int k = 0; k < 50; k++) //конечно это надо префилить за раз, здесь только для теста
             {
                 Task prefill = await executor.ProcessPrompt(main, prompt, false, false);
                 await prefill;

@@ -63,7 +63,7 @@ namespace Llama.csharp
         public LLamaPoolingType PoolingType { get; init; } = LLamaPoolingType.Unspecified;
 
         public LLamaAttentionType AttentionType { get; init; } = LLamaAttentionType.Unspecified;
-        public bool? KVunified { get; init; } = null;
+        public bool? KVunified { get; init; } = true;
         public bool? OPoffload { get; init; } = null;
         public bool? NoPerf { get; init; } = null;
     }

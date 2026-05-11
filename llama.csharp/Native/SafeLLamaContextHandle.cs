@@ -1,6 +1,7 @@
 ﻿using Llama.csharp.Exceptions;
 using System.Diagnostics;
 using System.Text;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Llama.csharp.Native
 {
@@ -395,6 +396,56 @@ namespace Llama.csharp.Native
         {
             LlamaCpp.Llama_PerfContextReset(this);
         }
+        #endregion
+
+        #region memory
+
+        // Clear the memory contents
+        // If data == true, the data buffers will also be cleared together with the metadata
+        internal void ClearMemory(bool data)
+        {
+            LlamaCpp.Llama_ContextMemoryClear(this, data);
+        }
+
+        // Removes all tokens that belong to the specified sequence and have positions in [p0, p1)
+        // Returns false if a partial sequence cannot be removed. Removing a whole sequence never fails
+        // seq_id < 0 : match any sequence
+        // p0 < 0     : [0,  p1]
+        // p1 < 0     : [p0, inf)
+        internal (bool,int) SeqMemoryRemove(LLamaSeqId seq, LLamaPos p0, LLamaPos p1)
+        {
+            LLamaPos minPos = LlamaCpp.Llama_ContextMemorySeqPosMin(this, seq);
+            LLamaPos maxPos = LlamaCpp.Llama_ContextMemorySeqPosMax(this, seq);
+
+            if (minPos == -1 || maxPos == -1) return (false,-1); //sequence is empty
+            if ((int)p1 > (int)maxPos) return (false,1);
+
+            return (LlamaCpp.Llama_ContextMemorySeqRemove(this, seq, p0, p1),0);
+        }
+
+        internal void SeqMemoryRemoveAll(LLamaSeqId seq)
+        {
+            LLamaPos minPos = LlamaCpp.Llama_ContextMemorySeqPosMin(this, seq);
+
+            if (minPos == -1) return; //sequence is empty
+
+            LlamaCpp.Llama_ContextMemorySeqRemove(this, seq, minPos, -1);
+        }
+
+        // Copy all tokens that belong to the specified sequence to another sequence
+        // p0 < 0 : [0,  p1]
+        // p1 < 0 : [p0, inf)
+        internal void SeqMemoryCopy(LLamaSeqId src, LLamaSeqId dest, LLamaPos p0, LLamaPos p1)
+        {
+            LlamaCpp.Llama_ContextMemorySeqCopy(this, src, dest, p0, p1);
+        }
+
+        // Removes all tokens that do not belong to the specified sequence
+        internal void SeqMemoryKeep(LLamaSeqId seq)
+        {
+            LlamaCpp.Llama_ContextMemorySeqKeep(this, seq);
+        }
+
         #endregion
 
     }

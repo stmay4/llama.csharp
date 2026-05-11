@@ -58,7 +58,7 @@ namespace Llama.csharp.Extensions
 
             result.op_offload = @params.OPoffload ?? result.op_offload;
 
-            //result.swa_full ;
+            result.swa_full = true;
 
             result.kv_unified = @params.KVunified ?? result.kv_unified; // если false то разделяет весь пул KV на колво последовательностей
         }

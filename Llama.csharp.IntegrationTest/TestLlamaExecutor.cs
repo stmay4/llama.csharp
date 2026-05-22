@@ -411,8 +411,8 @@ namespace Llama.csharp.IntegrationTest
 
                 var act = async () =>
                 {
-                    Task prefill1 = await executor.ProcessPrompt(main, "test prompt");
-                    Task prefill2 = await executor.ProcessPrompt(main, "test prompt"); //должен вызвать ошибку, так как последовательность уже в префилле
+                    Task prefill1 = executor.ProcessPrompt(main, "test prompt");
+                    Task prefill2 = executor.ProcessPrompt(main, "test prompt"); //должен вызвать ошибку, так как последовательность уже в префилле
 
                     await prefill1;
                     await prefill2;
@@ -528,8 +528,7 @@ namespace Llama.csharp.IntegrationTest
 
             var watcher = Stopwatch.StartNew();
 
-            Task prefill = await executor.ProcessPrompt(main, prompt, false, false);
-            await prefill;
+            await executor.ProcessPrompt(main, prompt, false, false);
 
             watcher.Stop();
             _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
@@ -593,8 +592,7 @@ namespace Llama.csharp.IntegrationTest
 
             for (int k = 0; k < 50; k++) //конечно это надо префилить за раз, здесь только для теста
             {
-                Task prefill = await executor.ProcessPrompt(main, prompt, false, false);
-                await prefill;
+                await executor.ProcessPrompt(main, prompt, false, false);
 
                 tokens.AddRange(executor.Context.Tokenize(prompt, false, false).ToList());
                 int tokenCount = tokens.Count;
@@ -667,8 +665,7 @@ namespace Llama.csharp.IntegrationTest
 
             for (int k = 0; k < 50; k++) //конечно это надо префилить за раз, здесь только для теста
             {
-                Task prefill = await executor.ProcessPrompt(main, prompt, false, false);
-                await prefill;
+                await executor.ProcessPrompt(main, prompt, false, false);
 
                 tokens.AddRange(executor.Context.Tokenize(prompt, false, false).ToList());
                 int tokenCount = tokens.Count;
@@ -987,9 +984,9 @@ namespace Llama.csharp.IntegrationTest
             //Dictionary<LLamaSeqId, Task> prefills = await executor.ProcessPrompt([s1, s2],[prompt, prompt], executor.Context.Vocab.ShouldAddBOS);
             //await Task.WhenAll(prefills.Values.ToArray());
 
-            await await executor.ProcessPrompt(s1, prompt, executor.Context.Vocab.ShouldAddBOS);
+            await executor.ProcessPrompt(s1, prompt, executor.Context.Vocab.ShouldAddBOS);
 
-            LLamaPos endpos = await executor.GetSequenceNextDecodedTokenPos(s1) ?? 0;
+            LLamaPos endpos = await executor.GetSequenceNextDecodedTokenPos(s1);
 
             await executor.CopySeqPrefixTo(s1, [s2], endpos);
 
@@ -1075,9 +1072,9 @@ namespace Llama.csharp.IntegrationTest
             //Dictionary<LLamaSeqId, Task> prefills = await executor.ProcessPrompt([s1, s2],[prompt, prompt], executor.Context.Vocab.ShouldAddBOS);
             //await Task.WhenAll(prefills.Values.ToArray());
 
-            await await executor.ProcessPrompt(s1, prompt, executor.Context.Vocab.ShouldAddBOS);
+            await executor.ProcessPrompt(s1, prompt, executor.Context.Vocab.ShouldAddBOS);
 
-            LLamaPos endpos = await executor.GetSequenceNextDecodedTokenPos(s1) ?? 0;
+            LLamaPos endpos = await executor.GetSequenceNextDecodedTokenPos(s1);
 
             await executor.CopySeqPrefixTo(s1, [s2], endpos);
 
@@ -1102,83 +1099,97 @@ namespace Llama.csharp.IntegrationTest
             model.Dispose();
         }
 
+        [Fact]
+        public async Task LlamaExecutor_Generate_DeleteEnd_Generate()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
 
-        //[Fact]
-        //public async Task LlamaExecutor_CloneSeqBeginning_FiveSeq()
-        //{
-        //    #region init
-        //    var requiredFiles = new[]
-        //    {
-        //        Path.Combine(_baseDllPath, "llama.dll"),
-        //        Path.Combine(_baseDllPath, "ggml.dll"),
-        //        Path.Combine(_baseDllPath, "ggml-base.dll"),
-        //        Path.Combine(_baseDllPath, _cpuBackend)
-        //    };
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
 
-        //    foreach (var file in requiredFiles)
-        //    {
-        //        File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-        //    }
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]]);
+            #endregion
 
-        //    LlamaCpp.Initialize(requiredFiles[0],
-        //                        requiredFiles[1],
-        //                        requiredFiles[2],
-        //                       [requiredFiles[3]]);
-        //    #endregion
+            ModelParams parametres = new ModelParams(_heavyModelPath) { };
 
-        //    ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
 
-        //    LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+            ContextParams ctxParams = new ContextParams()
+            {
+                ContextSize = 4000
+            };
 
-        //    ContextParams ctxParams = new ContextParams()
-        //    {
-        //        SeqMax = 5,
-        //        KVunified = true,
-        //        NoPerf = false
-        //    };
+            LlamaExecutor executor = model.CreateExecutor(ctxParams);
+            LLamaSeqId s1 = await executor.CreateSequence();
 
+            InferenceParams inferenceParams = new InferenceParams()
+            {
+                MaxTokens = 15,
+                AutoStopFromEOG = false,
+                DecodeSpecialTokens = true,
+                AntiPrompts = [],
+                SamplingPipeline = new TunableSamplerPipeline(
+                    new TunableSamplerPipelineSettings(
+                        [new TopKSampler()], new DistributionSampler()
+                        {
+                            Seed = 256
+                        }
+                        )
+                    )
+            };
 
-        //    LlamaExecutor executor = model.CreateExecutor(ctxParams);
+            string prompt = "<system> You are a helpful assistant. </system> \n\n\n" +
+                "<user> count from 1 to 50 </user> \n\n\n" +
+                "<assistant> ";
+            await executor.ProcessPrompt(s1, prompt, executor.Context.Vocab.ShouldAddBOS);
 
-        //    LLamaSeqId s1 = await executor.CreateSequence();
-        //    LLamaSeqId s2 = await executor.CreateSequence();
-        //    LLamaSeqId s3 = await executor.CreateSequence();
-        //    LLamaSeqId s4 = await executor.CreateSequence();
-        //    LLamaSeqId s5 = await executor.CreateSequence();
+            LLamaPos startPos = await executor.GetSequenceNextDecodedTokenPos(s1);
 
-        //    string prompt = "prompt is here prompt is here prompt is here prompt is here prompt is here prompt is here " +
-        //        "prompt is here prompt is here prompt is here prompt is here prompt is here prompt is here";
+            var watcher = Stopwatch.StartNew();
 
-        //    List<LLamaToken> tokens = new List<LLamaToken>();
+            Channel<string> ch1 = await executor.Generate(s1, inferenceParams);
 
-        //    var watcher = Stopwatch.StartNew();
+            string genText = "";
+            await foreach (var text in ch1.Reader.ReadAllAsync())
+            {
+                genText += text;
+            }
+            _output.WriteLine(genText);
 
-        //    for (int k = 0; k < 10; k++) //конечно это надо префилить за раз, здесь только для теста
-        //    {
-        //        //Dictionary<LLamaSeqId, Task> prefills = await executor.ProcessPrompt([s1, s2, s3, s4, s5], [prompt, prompt, prompt, prompt, prompt], [false, false, false, false, false], [false, false, false, false, false]);
-        //        //await Task.WhenAll(prefills.Values.ToArray());
+            watcher.Stop();
+            _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
 
-        //        //tokens.AddRange(executor.Context.Tokenize(prompt).ToList());
-        //        //int tokenCount = tokens.Count;
-        //        //int? pos = await executor.GetSequenceNextDecodedTokenPos(s3);
-        //        //IReadOnlyList<LLamaToken>? decoded = await executor.GetSequenceDecodedTokens(s3);
+            await executor.DeleteSequenceEnd(s1, startPos);
 
-        //        //tokenCount.Should().Be(pos);
-        //        //for (int i = 0; i < tokenCount; i++)
-        //        //{
-        //        //    tokens[i].Should().Be(decoded[i]);
-        //        //}
-        //    }
+            watcher = Stopwatch.StartNew();
 
-        //    LLamaPerfContextTimings timings = executor.Context.NativeHandle.GetTimings();
-        //    _output.WriteLine((timings.Eval.TotalMilliseconds + timings.PromptEval.TotalMilliseconds).ToString() + " eval ms");
+            Channel<string> ch2 = await executor.Generate(s1, inferenceParams);
 
-        //    watcher.Stop();
-        //    _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
+            genText = "";
+            await foreach (var text in ch2.Reader.ReadAllAsync())
+            {
+                genText += text;
+            }
+            _output.WriteLine(genText);
 
+            watcher.Stop();
+            _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
 
-        //    executor.Dispose();
-        //    model.Dispose();
-        //}
+            executor.Dispose();
+            model.Dispose();
+        }
+
     }
 }

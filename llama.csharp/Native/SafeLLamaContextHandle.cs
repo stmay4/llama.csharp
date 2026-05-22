@@ -412,15 +412,15 @@ namespace Llama.csharp.Native
         // seq_id < 0 : match any sequence
         // p0 < 0     : [0,  p1]
         // p1 < 0     : [p0, inf)
-        internal (bool,int) SeqMemoryRemove(LLamaSeqId seq, LLamaPos p0, LLamaPos p1)
+        internal bool SeqMemoryRemove(LLamaSeqId seq, LLamaPos p0, LLamaPos p1)
         {
             LLamaPos minPos = LlamaCpp.Llama_ContextMemorySeqPosMin(this, seq);
             LLamaPos maxPos = LlamaCpp.Llama_ContextMemorySeqPosMax(this, seq);
 
-            if (minPos == -1 || maxPos == -1) return (false,-1); //sequence is empty
-            if ((int)p1 > (int)maxPos) return (false,1);
+            if (minPos == -1 || maxPos == -1) return false; //sequence is empty
+            if ((int)p1 > (int)maxPos) return false;
 
-            return (LlamaCpp.Llama_ContextMemorySeqRemove(this, seq, p0, p1),0);
+            return LlamaCpp.Llama_ContextMemorySeqRemove(this, seq, p0, p1);
         }
 
         internal void SeqMemoryRemoveAll(LLamaSeqId seq)

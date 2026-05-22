@@ -109,3 +109,14 @@ public class GetLogitsInvalidIndexException
         Index = index;
     }
 }
+
+public class ContextFullException
+    : RuntimeError
+{
+
+    /// <inheritdoc />
+    public ContextFullException()
+        : base($"Context full!")
+    {
+    }
+}

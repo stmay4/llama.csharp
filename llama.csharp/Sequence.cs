@@ -20,6 +20,18 @@ namespace Llama.csharp
         public List<LLamaToken> Embeds = new();
 
         /// <summary>
+        /// Количество физических токенов в контексте (не разделенных между другими и принадлежащих этой последовательности)
+        /// В это число входит также количество токенов, которые только попали в Embeds при задании на заполнение
+        /// Это сделано для того, чтобы проверять задания на генерацию и заполнение на помещаемость в контекст до реальной отправки обрбаотчику
+        /// Также проверка должна быть в обработчике при добавлении в контекст только сгенерированных токенов, чтобы
+        /// они не добавлялись если все место уже занято префилом.
+        /// В данном случае префилл первостепенен
+        /// В будущем можно добавить настройка о первостепенности генерации, 
+        /// хотя легче уж просто удалить ненужную последовательность или кусок в данной для освобождения места
+        /// </summary>
+        public int RealTokensCount = 0;
+
+        /// <summary>
         /// Tracks anti-prompts across streamed output.
         /// </summary>
         public required AntipromptProcessor AntipromptProc { get; init; }
@@ -30,17 +42,37 @@ namespace Llama.csharp
 
         public readonly StreamingTokenDecoder Decoder = new StreamingTokenDecoder(context);
 
+        public bool EndDeleted { get; set; } = false;
+        public LLamaToken DeletedNextToken { get; set; }
+
         internal void ClearSequenceTokens()
         {
             NextDecodedTokenPos = 0;
             LastLogits = null;
             DecodedTokens.Clear();
+            RealTokensCount = 0;
         }
         internal void CopyStateFrom(Sequence seq)
         {
             NextDecodedTokenPos = seq.NextDecodedTokenPos;
             LastLogits = seq.LastLogits;
             DecodedTokens.AddRange(seq.DecodedTokens);
+        }
+
+        internal void SetNewEnd(int nextDecodedTokenPos)
+        {
+            if (NextDecodedTokenPos <= nextDecodedTokenPos) return; // новый конец должен быть меньше
+
+            RealTokensCount -= (NextDecodedTokenPos - nextDecodedTokenPos); // удаляем токены убранные из числа тех, что зранятся в кэше
+            RealTokensCount = Math.Max(0, RealTokensCount); //если были среди них разделенные, чтобы не ушло в минус
+
+            NextDecodedTokenPos = nextDecodedTokenPos;
+            LastLogits = null;
+
+            EndDeleted = true;
+            DeletedNextToken = DecodedTokens[nextDecodedTokenPos];
+
+            DecodedTokens = DecodedTokens.GetRange(0, nextDecodedTokenPos-1);
         }
     }
 

@@ -718,6 +718,23 @@ namespace Llama.csharp
         }
 
         /// <summary>
+        /// Метод для получения количества реальных токенов в контексте
+        /// </summary>
+        /// <returns></returns>
+        public async Task<int> GetContextFilling()
+        {
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                return getContextFilling();
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
+        }
+
+        /// <summary>
         /// подсчет количества использованных KV мест
         /// ВЫЗЫВАТЬ ТОЛЬКО ИЗ ПОД БЛОКИРОВКИ
         /// </summary>

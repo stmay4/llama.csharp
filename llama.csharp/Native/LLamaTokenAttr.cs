@@ -5,7 +5,7 @@ namespace Llama.csharp.Native
     /// <summary>
     /// Token attributes
     /// </summary>
-    /// <remarks>C# equivalent of llama_token_attr</remarks>
+    /// <remarks>C# equivalent of C++ llama_token_attr</remarks>
     [Flags]
     public enum LLamaTokenAttr
     {

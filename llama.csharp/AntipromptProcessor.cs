@@ -54,7 +54,7 @@
         }
 
         /// <summary>
-        /// Add some text and check if the buffer now ends with any antiprompt
+        /// Add some text and check if the buffer now CONTAINS any antiprompt
         /// </summary>
         /// <param name="text"></param>
         /// <returns>true if the text buffer ends with any antiprompt</returns>
@@ -62,16 +62,13 @@
         {
             _string += text;
 
-            // When the string gets very long (4x antiprompt length) trim it down (to 2x antiprompt length).
-            // This trimming leaves a lot of extra characters because two sequences can be considered "equal" in unicode
-            // even with different numbers of characters. Hopefully there are enough characters here to handle all those weird circumstances!
             var maxLength = Math.Max(32, _longestAntiprompt * 4);
             var trimLength = Math.Max(16, _longestAntiprompt * 2);
             if (_string.Length > maxLength)
                 _string = _string.Substring(_string.Length - trimLength);
 
             foreach (var antiprompt in _antiprompts)
-                if (_string.Contains(antiprompt))
+                if (_string.Contains(antiprompt)) //Contains Instead of EndsWith
                     return true;
 
             return false;

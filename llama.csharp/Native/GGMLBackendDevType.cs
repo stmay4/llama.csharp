@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace Llama.csharp.Native
 {
     /// <summary>
-    /// enum ggml_backend_dev_type
+    /// C++ enum ggml_backend_dev_type
     /// </summary>
     internal enum GGMLBackendDevType
     {

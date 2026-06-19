@@ -1,17 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Llama.csharp.Extensions
+﻿namespace Llama.csharp.Extensions
 {
+    /// <summary>
+    /// Extension for the ability to use Await with a work availability signal in the executor.
+    /// </summary>
     internal static class ManualResetEventSlimExtensions
     {
+        /// <summary>
+        /// Custom WaitAsync for ManualResetEventSlim, which does not natively support async waiting.
+        /// </summary>
+        /// <param name="mres"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public static Task WaitAsync(this ManualResetEventSlim mres, CancellationToken cancellationToken = default)
         {
-            // Быстрый путь: если уже установлен, возвращаем завершенную задачу сразу, 
-            // чтобы не тратить ресурсы пула потоков напрасно.
+            // Fast path: if already set, return a completed task immediately,
+            // so as not to waste thread pool resources unnecessarily.
             if (mres.IsSet)
                 return Task.CompletedTask;
 
@@ -24,14 +27,14 @@ namespace Llama.csharp.Extensions
             RegisteredWaitHandle? registeredHandle = null;
             CancellationTokenRegistration? registration = null;
 
-            // Флаг, чтобы понять, кто первым завершил задачу (событие или отмена)
+            // Flag to determine which completed the task first (event or cancellation)
             bool isCompleted = false;
 
             registeredHandle = ThreadPool.RegisterWaitForSingleObject(
                 waitObject: waitHandle,
                 callBack: (state, timedOut) =>
                 {
-                    // Событие сработало
+                    // Event signaled
                     if (!isCompleted)
                     {
                         isCompleted = true;
@@ -39,7 +42,7 @@ namespace Llama.csharp.Extensions
                         tcs.TrySetResult();
                     }
 
-                    // ВАЖНО: Всегда освобождаем ресурс, даже если задача уже завершена отменой
+                    // IMPORTANT: Always release the resource, even if the task has already been completed by cancellation
                     registeredHandle?.Unregister(waitHandle);
                 },
                 state: null,
@@ -59,11 +62,10 @@ namespace Llama.csharp.Extensions
                 });
             }
 
-            // Гарантируем очистку регистрации токена, когда задача завершится (успешно или нет)
-            // Это нужно, чтобы delegate токена не держал ссылку на tcs бесконечно, если событие сработало первым
+            // Ensure cleanup of the token registration when the task completes (successfully or not)
             _ = tcs.Task.ContinueWith(_ =>
             {
-                registration?.Dispose();// Двойная страховка
+                registration?.Dispose(); // Extra safety measure
             }, TaskScheduler.Default);
 
             return tcs.Task;

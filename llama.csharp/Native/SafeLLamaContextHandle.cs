@@ -67,7 +67,9 @@ namespace Llama.csharp.Native
         #region construction/destruction
         static SafeLLamaContextHandle() { }
 
-        /// переопределенный метод класса SafeHandle из System.Runtime.InteropServices, который выполняется при Dispose
+        /// <summary>
+        /// Overridden method of the SafeHandle class from System.Runtime.InteropServices, executed during Dispose.
+        /// </summary>
         protected override bool ReleaseHandle()
         {
             LlamaCpp.Llama_ContextFree(handle);
@@ -238,7 +240,7 @@ namespace Llama.csharp.Native
         }
         #endregion
 
-        #region tokens
+        #region Tokenize
         /// <summary>
         /// Convert the given text into tokens
         /// </summary>
@@ -253,16 +255,6 @@ namespace Llama.csharp.Native
             return ThrowIfDisposed().Vocab.Tokenize(text, add_bos, special, encoding);
         }
 
-        /// <summary>
-        /// Convert a single llama token into bytes
-        /// </summary>
-        /// <param name="token">Token to decode</param>
-        /// <param name="dest">A span to attempt to write into. If this is too small nothing will be written</param>
-        /// <returns>The size of this token. **nothing will be written** if this is larger than `dest`</returns>
-        public uint TokenToSpan(LLamaToken token, Span<byte> dest)
-        {
-            return ThrowIfDisposed().Vocab.TokenToSpan(token, dest);
-        }
         #endregion
 
         #region infer
@@ -339,22 +331,22 @@ namespace Llama.csharp.Native
 
             for (var i = 0; i < tokens.Count; i += batchSize)
             {
-                // Вычисляем размер текущего куска: либо полный batchSize, либо остаток
+                // Calculate the size of the current chunk: either the full batchSize or the remaining amount.
                 var n_eval = Math.Min(batchSize, tokens.Count - i);
 
                 batch.Clear();
 
-                // Добавляем токены текущего куска
+                // Add the tokens of the current chunk.
                 for (var j = 0; j < n_eval; j++)
                 {
-                    // Флаг logits=true только для самого последнего токена ВСЕГО списка
+                    // logits=true flag only for the very last token of the ENTIRE list.
                     bool isLastToken = (i + j) == tokens.Count - 1;
                     batch.Add(tokens[i + j], n_past++, id, isLastToken);
                 }
 
                 var returnCode = Decode(batch);
                 if (returnCode != DecodeResult.Ok)
-                    return (returnCode, tokens.Count - i); // Возвращаем количество НЕобработанных токенов
+                    return (returnCode, tokens.Count - i); // Return the number of unprocessed tokens if ERROR.
             }
 
             return (DecodeResult.Ok, 0);

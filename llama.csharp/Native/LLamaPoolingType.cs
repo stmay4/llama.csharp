@@ -1,7 +1,7 @@
 ﻿namespace Llama.csharp.Native
 {
     /// <summary>
-    /// llama_pooling_type
+    /// C++ llama_pooling_type
     /// </summary>
     public enum LLamaPoolingType
     {

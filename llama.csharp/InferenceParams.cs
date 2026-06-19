@@ -5,7 +5,7 @@ namespace Llama.csharp
     public record InferenceParams: IInferenceParams
     {
         public int TokensKeep { get; init; } = 0;
-        public int MaxTokens { get; init; } = -1; //-1 - Бесконечность
+        public int MaxTokens { get; init; } = -1; //-1 = Infinity
         public bool DecodeSpecialTokens { get; init; } = true;
         public bool AutoStopFromEOG { get; init; } = true;
         public IReadOnlyList<string> AntiPrompts { get; init; } = [];

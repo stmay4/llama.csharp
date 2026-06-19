@@ -6,7 +6,7 @@ namespace Llama.csharp.Interfaces
         /// <summary>
         /// number of tokens to keep from initial prompt
         /// </summary>
-        public int TokensKeep { get; } // елси реализую словарь сообщений и он будет работать то не нужно
+        public int TokensKeep { get; }
 
         /// <summary>
         /// how many new tokens to predict (n_predict), set to -1 to inifinitely generate response

@@ -281,7 +281,7 @@ namespace Llama.csharp.Native
 
 
         /// <summary>
-        /// <purpose> Задает указатели на функции llama cpp, необходимые SafeLlamaModelHandle </purpose>
+        /// <purpose> load functions for SafeLlamaModelHandle </purpose>
         /// </summary>
         private static void LoadModelFunctions()
         {

@@ -3,7 +3,7 @@
 namespace Llama.csharp.Native
 {
     /// <summary>
-    /// llama_perf_context_data
+    /// C++ llama_perf_context_data
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct LLamaPerfContextTimings
@@ -82,7 +82,7 @@ namespace Llama.csharp.Native
     /// <summary>
     /// LLama performance information
     /// </summary>
-    /// <remarks>llama_perf_sampler_data</remarks>
+    /// <remarks>C++ llama_perf_sampler_data</remarks>
     [StructLayout(LayoutKind.Sequential)]
     public struct LLamaSamplingTimings
     {

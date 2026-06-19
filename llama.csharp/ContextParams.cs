@@ -12,7 +12,7 @@ namespace Llama.csharp
 
         public uint UBatchSize { get; init; } = 512;
 
-        public uint SeqMax { get; init; } = 1; //вроде макс 64
+        public uint SeqMax { get; init; } = 1; //max is 64 maybe, maybe 256. I haven't checked yet.
 
         public bool Embeddings { get; init; } = false;
 
@@ -22,10 +22,10 @@ namespace Llama.csharp
 
 
         /// <summary>
-        /// Параметр не находится в LlamaContextParams, просто здесь хранится для удобства
+        /// This parameter is not part of LlamaContextParams, it is stored here for convenience.
         /// 
-        /// Задает раскодировку для StreamingDecoder, который используется при инференсе 
-        /// для превращения токенов в байты заданной кодировки
+        /// Specifies the decoding for the StreamingDecoder, which is used during inference
+        /// to convert tokens into bytes of the specified encoding.
         /// </summary>
         private string EncodingName { get; init; } = Encoding.UTF8.WebName;
         public Encoding Encoding

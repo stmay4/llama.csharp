@@ -3,7 +3,7 @@
     /// <summary>
     /// 
     /// </summary>
-    /// <remarks>llama_vocab_type</remarks>
+    /// <remarks>C++ llama_vocab_type</remarks>
     public enum LLamaVocabType
     {
         /// <summary>

@@ -109,7 +109,7 @@ namespace Llama.csharp
             }
         }
         private readonly float _p = 0.95f; // 1 = disabled
-        public nint MinKeep
+        public int MinKeep
         {
             get => _minKeep;
             init
@@ -119,11 +119,11 @@ namespace Llama.csharp
                 _minKeep = value;
             }
         }
-        private readonly nint _minKeep = 1;
+        private readonly int _minKeep = 1;
 
         public void AddToChain(SafeLLamaSamplerChainHandle chain)
         {
-            chain.AddTopP(P, MinKeep);
+            chain.AddTopP(P, (nint)MinKeep);
         }
     }
 
@@ -146,7 +146,7 @@ namespace Llama.csharp
             }
         }
         private readonly float _p = 0.05f; // 0 = disabled
-        public nint MinKeep
+        public int MinKeep
         {
             get => _minKeep;
             init
@@ -156,11 +156,11 @@ namespace Llama.csharp
                 _minKeep = value;
             }
         }
-        private readonly nint _minKeep = 1;
+        private readonly int _minKeep = 1;
 
         public void AddToChain(SafeLLamaSamplerChainHandle chain)
         {
-            chain.AddMinP(P, MinKeep);
+            chain.AddMinP(P, (nint)MinKeep);
         }
     }
 

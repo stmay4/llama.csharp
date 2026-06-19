@@ -1,14 +1,15 @@
 ﻿using System.Runtime.InteropServices;
 
 namespace Llama.csharp.Native
-{/// <summary>
- /// Called by llama.cpp with a progress value between 0 and 1
- /// </summary>
- /// <param name="progress"></param>
- /// <param name="ctx"></param>
- /// <returns>If the provided progress_callback returns true, model loading continues.
- /// If it returns false, model loading is immediately aborted.</returns>
- /// <remarks>llama_progress_callback</remarks>
+{
+    /// <summary>
+    /// Called by llama.cpp with a progress value between 0 and 1
+    /// </summary>
+    /// <param name="progress"></param>
+    /// <param name="ctx"></param>
+    /// <returns>If the provided progress_callback returns true, model loading continues.
+    /// If it returns false, model loading is immediately aborted.</returns>
+    /// <remarks>llama_progress_callback</remarks>
     public delegate bool LlamaProgressCallback(float progress, nint ctx);
 
     /// <summary>

@@ -15,7 +15,7 @@ namespace Llama.csharp.Native
     ///    // TODO: API for internal libllama usage for appending the sampling to an existing ggml_cgraph
     ///    //void (*apply_ggml) (struct llama_sampler * smpl, ...);
     ///};
-    /// <remarks>llama_sampler_i</remarks>
+    /// <remarks>C++ llama_sampler_i</remarks>
     [StructLayout(LayoutKind.Sequential)]
     public struct LLamaSamplerI
     {

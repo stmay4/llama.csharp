@@ -5,7 +5,7 @@ namespace Llama.csharp.Native
     /// <summary>
     /// Contains a pointer to an array of LLamaTokenData which is pinned in memory.
     /// </summary>
-    /// <remarks>C# equivalent of llama_token_data_array</remarks>
+    /// <remarks>C# equivalent of C++ llama_token_data_array</remarks>
     [StructLayout(LayoutKind.Sequential)]
     public struct LLamaTokenData
     {

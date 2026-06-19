@@ -12,8 +12,6 @@ namespace Llama.csharp
 
         /// <summary>
         /// Total number of tokens in the context
-        /// нужен для того, чтобы при не заданном значении в параметрах загрузки вернуть значение из самой модели вызовом 
-        /// нативного метода
         /// </summary>
         public uint ContextSize => NativeHandle.ContextSize;
 

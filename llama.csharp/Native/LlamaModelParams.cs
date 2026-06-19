@@ -1,9 +1,10 @@
 ﻿using System.Runtime.InteropServices;
 
 namespace Llama.csharp.Native
-{/// <summary>
- /// A C# representation of the llama.cpp `llama_model_params` struct
- /// </summary>
+{
+    /// <summary>
+    /// A C# representation of the llama.cpp `llama_model_params` struct
+    /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct LLamaModelParams
     {

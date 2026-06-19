@@ -72,7 +72,7 @@ namespace Llama.csharp
             EndDeleted = true;
             DeletedNextToken = DecodedTokens[nextDecodedTokenPos];
 
-            DecodedTokens = DecodedTokens.GetRange(0, nextDecodedTokenPos-1);
+            DecodedTokens = DecodedTokens.GetRange(0, nextDecodedTokenPos);
         }
     }
 

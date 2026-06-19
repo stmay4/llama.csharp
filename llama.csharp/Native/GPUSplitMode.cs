@@ -1,6 +1,6 @@
 ﻿namespace Llama.csharp.Native
 {
-    /// <remarks>llama_split_mode</remarks>
+    /// <remarks>C++ llama_split_mode</remarks>
     public enum GPUSplitMode
     {
         /// <summary>

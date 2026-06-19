@@ -2,5 +2,6 @@
 {
     internal class NativeLogConfig
     {
+        //It's empty now
     }
 }

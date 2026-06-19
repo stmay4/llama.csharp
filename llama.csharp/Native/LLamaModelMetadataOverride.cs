@@ -54,7 +54,7 @@ namespace Llama.csharp.Native
     /// <summary>
     /// Specifies what type of value is being overridden by LLamaModelKvOverride
     /// </summary>
-    /// <remarks>llama_model_kv_override_type</remarks>
+    /// <remarks>C++ llama_model_kv_override_type</remarks>
     public enum LLamaModelKvOverrideType
     {
         /// <summary>

@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Llama.csharp.Native
 {
-    //
+    // C++
     // Sampling API
     //
     // Sample usage:
@@ -41,7 +41,7 @@ namespace Llama.csharp.Native
     // TODO: In the future, llama_sampler will be utilized to offload the sampling to the backends (e.g. GPU).
     //
 
-    //цепочка Pipeline для обработки декода и выбора токена
+    // Chain of samplers for processing logits and selecting a token.
     public sealed class SafeLLamaSamplerChainHandle
     : SafeLLamaHandleBase
     {
@@ -179,9 +179,8 @@ namespace Llama.csharp.Native
             LlamaCpp.Llama_SamplerFree(LlamaCpp.Llama_SamplerChainRemove(this, index));
         }
 
-        //добавление своих семплеров
         ///// <summary>
-        ///// Add a custom sampler stage
+        ///// Add a custom sampler stage. (not now)
         ///// </summary>
         ///// <typeparam name="TSampler"></typeparam>
         ///// <param name="sampler"></param>

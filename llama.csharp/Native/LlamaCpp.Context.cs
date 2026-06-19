@@ -2,6 +2,9 @@
 
 namespace Llama.csharp.Native
 {
+    /// <summary>
+    /// PARTIAL context functions
+    /// </summary>
     public static partial class LlamaCpp
     {
         #region LLAMA API functions
@@ -466,7 +469,7 @@ namespace Llama.csharp.Native
         #endregion
 
         /// <summary>
-        /// <purpose> Задает указатели на функции llama cpp, необходимые SafeLlamaContextHandle </purpose>
+        /// <purpose> load functions for SafeLlamaContextHandle </purpose>
         /// </summary>
         private static void LoadContextFunctions()
         {

@@ -46,19 +46,6 @@ namespace Llama.csharp.Native
         /// <summary>
         /// Get attributes for this token
         /// </summary>
-        /// <param name="model"></param>
-        /// <returns></returns>
-        public LLamaTokenAttr GetAttributes(SafeLlamaModelHandle model)
-        {
-            unsafe
-            {
-                return LlamaCpp.Llama_VocabGetAttr(model.Vocab.VocabNative, this);
-            }
-        }
-
-        /// <summary>
-        /// Get attributes for this token
-        /// </summary>
         /// <param name="vocab"></param>
         /// <returns></returns>
         public LLamaTokenAttr GetAttributes(SafeLlamaModelHandle.Vocabulary vocab)
@@ -85,16 +72,6 @@ namespace Llama.csharp.Native
         /// <summary>
         /// Check if this is a control token
         /// </summary>
-        /// <param name="model"></param>
-        /// <returns></returns>
-        public bool IsControl(SafeLlamaModelHandle model)
-        {
-            return IsControl(model.Vocab);
-        }
-
-        /// <summary>
-        /// Check if this is a control token
-        /// </summary>
         /// <param name="vocab"></param>
         /// <returns></returns>
         public bool IsControl(SafeLlamaModelHandle.Vocabulary vocab)
@@ -103,16 +80,6 @@ namespace Llama.csharp.Native
             {
                 return LlamaCpp.Llama_VocabIsControl(vocab.VocabNative, this);
             }
-        }
-
-        /// <summary>
-        /// Check if this token should end generation
-        /// </summary>
-        /// <param name="model"></param>
-        /// <returns></returns>
-        public bool IsEndOfGeneration(SafeLlamaModelHandle model)
-        {
-            return IsEndOfGeneration(model.Vocab);
         }
 
         /// <summary>

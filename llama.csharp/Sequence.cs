@@ -15,19 +15,19 @@ namespace Llama.csharp
         public LLamaTokenDataArray? LastLogits { get; set; } = null;
         public List<LLamaToken> DecodedTokens { get; set; } = new List<LLamaToken>();
         /// <summary>
-        /// токены для обработки декодом
+        /// Tokens that should be decoded by the model
         /// </summary>
-        public List<LLamaToken> Embeds = new();
+        public List<LLamaToken> TokensToPrefill = new();
 
         /// <summary>
-        /// Количество физических токенов в контексте (не разделенных между другими и принадлежащих этой последовательности)
-        /// В это число входит также количество токенов, которые только попали в Embeds при задании на заполнение
-        /// Это сделано для того, чтобы проверять задания на генерацию и заполнение на помещаемость в контекст до реальной отправки обрбаотчику
-        /// Также проверка должна быть в обработчике при добавлении в контекст только сгенерированных токенов, чтобы
-        /// они не добавлялись если все место уже занято префилом.
-        /// В данном случае префилл первостепенен
-        /// В будущем можно добавить настройка о первостепенности генерации, 
-        /// хотя легче уж просто удалить ненужную последовательность или кусок в данной для освобождения места
+        /// Number of physical tokens in the context that belong to this sequence
+        /// (i.e., not shared with other sequences).
+        /// This count also includes tokens that have just been placed into <see cref="TokensToPrefill"/>
+        /// during a prefill request. This allows pre‑checking whether a generation or prefill
+        /// job will fit into the context before actually submitting it to the decoder loop.
+        /// Additionally, when the decoder loop adds freshly generated tokens to the context,
+        /// it must perform a final check to prevent adding tokens if the context space
+        /// is already fully occupied by prefill tokens.
         /// </summary>
         public int RealTokensCount = 0;
 
@@ -61,10 +61,13 @@ namespace Llama.csharp
 
         internal void SetNewEnd(int nextDecodedTokenPos)
         {
-            if (NextDecodedTokenPos <= nextDecodedTokenPos) return; // новый конец должен быть меньше
+            if (NextDecodedTokenPos <= nextDecodedTokenPos) return; // new end must be smaller than current
 
-            RealTokensCount -= (NextDecodedTokenPos - nextDecodedTokenPos); // удаляем токены убранные из числа тех, что зранятся в кэше
-            RealTokensCount = Math.Max(0, RealTokensCount); //если были среди них разделенные, чтобы не ушло в минус
+            // Remove the truncated tokens from the count of tokens stored in the cache
+            // (only tokens from the end can be "real", not shared)
+            RealTokensCount -= (NextDecodedTokenPos - nextDecodedTokenPos);
+            // Prevent negative count if some of the removed tokens were shared
+            RealTokensCount = Math.Max(0, RealTokensCount);
 
             NextDecodedTokenPos = nextDecodedTokenPos;
             LastLogits = null;
@@ -77,24 +80,24 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// State arguments that are used in single inference
+    /// State arguments used during one sequence generation task
     /// </summary>
     internal class InferStateArgs
     {
         /// <summary>
-        /// Lock help
+        /// Indicates whether the sequence is currently in use (serves as a lightweight lock).
         /// </summary>
         public SeqState State { get; set; } = SeqState.None;
         /// <summary>
-        /// Sequence must be postprocessed
+        /// Set to true when a token has been sampled and decoded, meaning the sequence needs postprocessing.
         /// </summary>
         public bool TokenSampledAndDecoded { get; set; } = false;
         /// <summary>
-        /// Tokens count remained to be used. (n_remain)
+        /// Number of tokens remaining to be generated (n_remain for max tokens limit).
         /// </summary>
         public int RemainedTokens { get; set; }
         /// <summary>
-        /// 
+        /// If true, generation stops automatically when an End‑of‑Generation (EOG) token is produced.
         /// </summary>
         public bool AutoStopFromEOG { get; set; }
     }

@@ -6,17 +6,17 @@ namespace Llama.csharp
     public class TunableSamplerPipelineSettings
     {
         /// <summary>
-        /// Список семплеров в порядке применения
+        /// List of samplers in the order they are applied.
         /// </summary>
         private List<ISampler> _samplers = new List<ISampler>();
         public List<ISampler> Samplers
         {
             get { return _samplers; }
             set { _samplers = value; }
-        } 
+        }
 
         /// <summary>
-        /// Финальный семплер, который выбирает один токен
+        /// Final sampler that selects a single token from the distribution.
         /// </summary>
         private IFinalizeSampler _finalizeSampler = new GreedySampler();
         public IFinalizeSampler FinalizeSampler
@@ -25,6 +25,11 @@ namespace Llama.csharp
             set { _finalizeSampler = value; }
         }
 
+        /// <summary>
+        /// Initializes a new instance of <see cref="TunableSamplerPipelineSettings"/> with the specified samplers and finalizer.
+        /// </summary>
+        /// <param name="samplers">The list of samplers to apply in sequence.</param>
+        /// <param name="finalizeSampler">The sampler that makes the final token choice.</param>
         public TunableSamplerPipelineSettings(List<ISampler> samplers, IFinalizeSampler finalizeSampler) 
         {
             Samplers = samplers;
@@ -45,7 +50,7 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// Сортируем распределение токенов по убыванию и выбираем первые K
+    /// Sorts the token distribution in descending order and selects the first K tokens.
     /// </summary>
     public class TopKSampler : ISampler
     { 
@@ -54,7 +59,7 @@ namespace Llama.csharp
             get => _k;
             init
             {
-                if (value < 0) //0 - не применяется
+                if (value < 0) // 0 means disabled
                     throw new ArgumentOutOfRangeException(nameof(value), $"{nameof(K)} cant be less then 0");
                 _k = value;
             }
@@ -68,7 +73,9 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// Вычисляем среднее арифметическое и стандартное отклонение, расчитываем порог как ср ариф + ст откл * N, берем токены чья вероятность выше порога
+    /// Calculates the mean and standard deviation of the token probabilities,
+    /// sets a threshold at mean + N * standard deviation, and keeps tokens
+    /// whose probability is above that threshold.
     /// </summary>
     public class TopNSigmaSampler : ISampler
     {
@@ -77,7 +84,7 @@ namespace Llama.csharp
             get => _n;
             init
             {
-                if (value < 0) //Число указывает количество стандартных отклонений от среднего значения вероятности, которое допускается для выбора токена.
+                if (value < 0)
                     throw new ArgumentOutOfRangeException(nameof(value), $"{nameof(N)} cant be less then 0");
                 _n = value;
             }
@@ -91,7 +98,8 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// Фильтрует токены, оставляя только те, чья кумулятивная вероятность не превышает заданный порог P.
+    /// Filters tokens so that only those with a cumulative probability not exceeding
+    /// the given threshold P are kept.
     /// </summary>
     public class TopPSampler : ISampler
     {
@@ -128,7 +136,7 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// Оставляет токены, чья вероятность составляет не менее P * (вероятность самого вероятного токена).
+    /// Keeps only tokens whose probability is at least P * (probability of the most likely token).
     /// </summary>
     public class MinPSampler : ISampler
     {
@@ -199,7 +207,8 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// Делим логиты на температуру перед softmax
+    /// Divides the logits by the temperature before applying softmax.
+    /// Higher temperature increases diversity, lower makes the output more deterministic.
     /// </summary>
     public class TemperatureSampler : ISampler
     {
@@ -223,8 +232,9 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// Адаптивная температура: изменяет температуру в зависимости от энтропии распределения.
-    /// Позволяет автоматически увеличивать разнообразие в неопределённых местах и уменьшать – в уверенных.
+    /// Adaptive temperature: adjusts the temperature dynamically based on the entropy
+    /// of the token distribution. Automatically increases diversity in uncertain contexts
+    /// and decreases it in confident ones.
     /// </summary>
     public class AdapTSampler : ISampler
     {
@@ -267,8 +277,9 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// Экстремальное семплирование (XTC): с заданной вероятностью отбрасывает наиболее вероятные токены,
-    /// оставляя только токены из "хвоста" распределения. Используется для повышения креативности и неожиданности генерации.
+    /// XTC (eXtreme Truncation) sampler: with a given probability, discards the most likely tokens
+    /// and keeps only tokens from the "tail" of the distribution. Used to increase creativity
+    /// and unpredictability of the generation.
     /// </summary>
     public class XTCSampler : ISampler
     {
@@ -322,6 +333,10 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// Grammar-guided sampler. Constrains the generated tokens to follow a formal grammar
+    /// (e.g., GBNF format).
+    /// </summary>
     public class GrammarSampler : ISampler
     {
         public Grammar Grammar { get; init; } = new Grammar("", "");
@@ -333,6 +348,9 @@ namespace Llama.csharp
         }
     }
 
+    /// <summary>
+    /// Applies repetition, frequency, and presence penalties to the token logits.
+    /// </summary>
     public class PenaltiesSampler : ISampler
     {
         /// <summary>
@@ -386,8 +404,8 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// Применяет смещения (bias) к логитам конкретных токенов.
-    /// Позволяет увеличивать или уменьшать вероятность выбора определённых токенов вручную.
+    /// Applies bias values to the logits of specific tokens, manually increasing or decreasing
+    /// their probability of being selected.
     /// </summary>
     public class LogitBiasSampler : ISampler
     {
@@ -423,7 +441,7 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// жадное декодирование
+    /// Greedy sampler: always picks the token with the highest probability.
     /// </summary>
     public class GreedySampler: IFinalizeSampler
     {
@@ -436,7 +454,7 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// случайная выборка
+    /// Random sampling: selects a token according to the probability distribution.
     /// </summary>
     public class DistributionSampler : IFinalizeSampler
     {
@@ -449,34 +467,35 @@ namespace Llama.csharp
     }
 
     /// <summary>
-    /// Миростат - поддерживает заданный уровень перплексии
+    /// Mirostat v2: a perplexity‑controlled sampling algorithm that adjusts the token distribution
+    /// to maintain a target perplexity level.
     /// </summary>
     public class Mirostat2Sampler : IFinalizeSampler
     {
         public uint Seed { get; init; } = 42;
         /// <summary>
-        /// уровень перплексии
+        /// Target perplexity level.
         /// </summary>
         public float Tau
         {
             get => _tau;
             init
             {
-                if (value < 0) //0 - не применяется
+                if (value < 0) //0 - disabled
                     throw new ArgumentOutOfRangeException(nameof(value), $"{nameof(Tau)} cant be less then 0");
                 _tau = value;
             }
         }
         private readonly float _tau = 3;
         /// <summary>
-        /// скорость изменения
+        /// Learning rate for perplexity adjustment.
         /// </summary>
         public float Eta
         {
             get => _eta;
             init
             {
-                if (value < 0) //0 - не применяется
+                if (value < 0) //0 - disabled
                     throw new ArgumentOutOfRangeException(nameof(value), $"{nameof(Eta)} cant be less then 0");
                 _eta = value;
             }

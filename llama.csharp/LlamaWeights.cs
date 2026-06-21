@@ -64,18 +64,24 @@ namespace Llama.csharp
             return new LLamaWeights(weights);
         }
 
+        /// <summary>
+        /// Async load weights into memory
+        /// </summary>
+        /// <param name="params"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public static async Task<LLamaWeights> LoadFromFileAsync(IModelParams @params, CancellationToken cancellationToken = default)
         {
             return await Task.Run(() =>
             {
                 try
                 {
-                    // Проверяем отмену перед запуском тяжелой операции
+                    // Checking for cancellation before starting a heavy operation
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var weights = LoadFromFile(@params);
 
-                    // Проверяем отмену после завершения (на случай, если нужно прервать дальнейшую логику)
+                    // Checking for cancellation after operation completion (in case further logic needs to be interrupted)
                     cancellationToken.ThrowIfCancellationRequested();
 
                     return weights;
@@ -90,11 +96,11 @@ namespace Llama.csharp
         }
 
         /// <summary>
-        /// NoAlloc = true не работает после обновления windows как будто
-        /// ПРОВЕРИТЬ С НОВОЙ ВЕРСИЕЙ ПОТОМ использование NoAlloc = true
+        /// Model metadata loading without weight initialization
+        /// Note: NoAlloc = true currently doesn't work - verify with new version later
         /// </summary>
-        /// <param name="modelPath"></param>
-        /// <returns></returns>
+        /// <param name="modelPath"> Path to the model </param>
+        /// <returns> NoAllocModelInfo object </returns>
         public static NoAllocModelInfo LoadInfoNoAlloc(string modelPath)
         {
             ModelParams @params = new ModelParams(modelPath)
@@ -139,29 +145,25 @@ namespace Llama.csharp
         }
 
         /// <summary>
-        /// Create a llama_context using this model
+        /// Creates an executor for multi-sequences operations (batch processing and more)
         /// </summary>
-        /// <param name="params"></param>
-        /// <param name="logger"></param>
-        /// <returns></returns>
-        //public LLamaContext CreateContext(IContextParams @params)//, ILogger? logger = null)
-        //{
-        //    return new LLamaContext(this, @params);//, logger);
-        //}
-
-        /// Изменить на CreateExecutor
+        /// <param name="params"> Configuration parameters </param>
         public LlamaExecutor CreateExecutor(IContextParams @params)
         {
             LLamaContext context = new LLamaContext(this, @params);
             return new LlamaExecutor(context);
         }
 
+        /// <summary>
+        /// Creates an executor for single sequence operations (lower overhead)
+        /// </summary>
+        /// <param name="params"> Configuration parameters </param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="params"/>.SeqMax is not 1.</exception>
         public OneSeqLlamaExecutor CreateOneSeqExecutor(IContextParams @params)
         {
             if (@params.SeqMax != 1) throw new ArgumentOutOfRangeException("SeqMax for OneSeqLLamaExecutor must be 1");
             LLamaContext context = new LLamaContext(this, @params);
             return new OneSeqLlamaExecutor(context);
         }
-
     }
 }

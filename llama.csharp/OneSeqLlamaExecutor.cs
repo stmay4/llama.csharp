@@ -69,11 +69,11 @@ namespace Llama.csharp
                 {
                     _mainSeq.InferState.State = SeqState.Prefill;
                     //заполнение Embeds последовательности
-                    _mainSeq.Embeds.AddRange(embeds);
+                    _mainSeq.TokensToPrefill.AddRange(embeds);
 
                     LLamaBatch batch = new LLamaBatch();
 
-                    (DecodeResult, int, int) tuple = await Context.DecodeAsync(_mainSeq.Embeds, _mainSeq.Id, batch, _mainSeq.NextDecodedTokenPos);
+                    (DecodeResult, int, int) tuple = await Context.DecodeAsync(_mainSeq.TokensToPrefill, _mainSeq.Id, batch, _mainSeq.NextDecodedTokenPos);
 
                     if (tuple.Item1 != DecodeResult.Ok)
                     {
@@ -82,8 +82,8 @@ namespace Llama.csharp
                     }
 
                     _mainSeq.NextDecodedTokenPos = tuple.Item3;
-                    _mainSeq.DecodedTokens.AddRange(_mainSeq.Embeds);
-                    _mainSeq.Embeds.Clear();
+                    _mainSeq.DecodedTokens.AddRange(_mainSeq.TokensToPrefill);
+                    _mainSeq.TokensToPrefill.Clear();
                     _mainSeq.LastLogits = LLamaTokenDataArray.Create(Context.NativeHandle.GetLogitsIth(batch.TokenCount - 1));
                     _mainSeq.InferState.State = SeqState.None;
                 }
@@ -152,7 +152,7 @@ namespace Llama.csharp
                 _mainSeq.AntipromptProc.ClearString();
                 _mainSeq.AntipromptProc.SetAntiprompts(inferenceParams.AntiPrompts ?? []);
                 _mainSeq.Decoder.DecodeSpecialTokens = _mainSeq.InferParams.DecodeSpecialTokens;
-                _mainSeq.Embeds.Clear(); //на всякий
+                _mainSeq.TokensToPrefill.Clear(); //на всякий
 
                 while (_mainSeq.InferState.State == SeqState.Generation)
                 {
@@ -169,7 +169,7 @@ namespace Llama.csharp
                         _mainSeq.InferParams.SamplingPipeline.Accept(llamaToken);
                     }
 
-                    _mainSeq.Embeds.Add(llamaToken); // добавляем в контейнер для декода моделью только что выбранный токен
+                    _mainSeq.TokensToPrefill.Add(llamaToken); // добавляем в контейнер для декода моделью только что выбранный токен
                     #endregion
 
                     #region Decode
@@ -187,8 +187,8 @@ namespace Llama.csharp
 
                     _mainSeq.NextDecodedTokenPos++;
                     _mainSeq.LastLogits = LLamaTokenDataArray.Create(Context.NativeHandle.GetLogitsIth(batch.TokenCount - 1));
-                    _mainSeq.DecodedTokens.Add(_mainSeq.Embeds.Last()); //записываем токены embeds как отдекодированные
-                    _mainSeq.Embeds.Clear();
+                    _mainSeq.DecodedTokens.Add(_mainSeq.TokensToPrefill.Last()); //записываем токены embeds как отдекодированные
+                    _mainSeq.TokensToPrefill.Clear();
                     _mainSeq.InferState.TokenSampledAndDecoded = true; // надо делать постпроцессинг
                     _mainSeq.InferState.RemainedTokens--; // уменьшить колво оставшихся для генерации токенов
                     #endregion

@@ -30,27 +30,27 @@ namespace Llama.csharp
         }
 
         /// <summary>
-        /// Preprocess the inputs before the inference for given Sequence.
+        /// Tokenizes the input text according to the specified flags.
         /// </summary>
-        /// <param name="text"></param>
+        /// <param name="text">The text to tokenize.</param>
+        /// <param name="addBos">Whether to prepend the BOS token.</param>
+        /// <param name="special">Whether to treat special tokens as such.</param>
         private List<LLamaToken> preprocessInputs(string text, bool addBos, bool special)
         {
             return Context.Tokenize(text, addBos, special).ToList();
         }
 
         /// <summary>
-        /// Префил 
+        /// Processes a single prompt by tokenizing the text and running the prefill phase.
         /// </summary>
-        /// <param name="seqIds"></param>
-        /// <param name="texts"></param>
-        /// <param name="addBos"></param>
-        /// <param name="special"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        /// <exception cref="IndexOutOfRangeException"></exception>
+        /// <param name="text">The text to process.</param>
+        /// <param name="addBos">Whether to add the BOS token.</param>
+        /// <param name="special">Whether to tokenize special tokens.</param>
+        /// <returns>A task representing the asynchronous prefill operation.</returns>
+        /// <exception cref="LLamaDecodeError">Thrown if the underlying decode fails.</exception>
         public async Task ProcessPrompt(string text, bool addBos = false, bool special = true)
         {
-            // простые проверки аргументов, без блокировки
+            // Simple argument checks, no locking needed
             #region Checks 
 
             #endregion
@@ -62,13 +62,13 @@ namespace Llama.csharp
             else
                 embeds = preprocessInputs(text, addBos, special);
 
-            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); //блокировка для редактирования _prefillSeqs
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); // Lock for modifying the sequence state
             try
             {
                 if (embeds != null)
                 {
                     _mainSeq.InferState.State = SeqState.Prefill;
-                    //заполнение Embeds последовательности
+                    // Fill the sequence's TokensToPrefill
                     _mainSeq.TokensToPrefill.AddRange(embeds);
 
                     LLamaBatch batch = new LLamaBatch();
@@ -77,7 +77,7 @@ namespace Llama.csharp
 
                     if (tuple.Item1 != DecodeResult.Ok)
                     {
-                        //tuple.Item2; хранит число неотдекоденных
+                        //tuple.Item2 stores the number of tokens that were not decoded
                         throw new LLamaDecodeError(tuple.Item1);
                     }
 
@@ -94,15 +94,19 @@ namespace Llama.csharp
             }
         }
 
-        private string postProcessInfer() //проверка, что пора заканчивать
+        /// <summary>
+        /// Post-processes the inference step: decodes the sampled token and checks stopping conditions.
+        /// </summary>
+        /// <returns>The decoded string piece, which may be empty.</returns>
+        private string postProcessInfer()
         {
             _mainSeq.InferState.TokenSampledAndDecoded = false;
 
-            // Преобразуем токен в строку
+            // Convert the token to a string
             _mainSeq.Decoder.Add(_mainSeq.DecodedTokens.Last());
             var decoded = _mainSeq.Decoder.Read();
 
-            // если сгенерирован антипромпт
+            // If an anti-prompt was generated
             if (!string.IsNullOrEmpty(decoded) && _mainSeq.AntipromptProc.Add(decoded))
             {
                 _mainSeq.InferState.State = SeqState.None;
@@ -110,14 +114,14 @@ namespace Llama.csharp
 
             if (_mainSeq.InferState.AutoStopFromEOG)
             {
-                // если сгенерирован конец
+                // If an EOG token was generated
                 if (_mainSeq.DecodedTokens.Last().IsEndOfGeneration(Context.Vocab))
                 {
                     _mainSeq.InferState.State = SeqState.None;
                 }
             }
 
-            // если кончились токены
+            // If the number of generated tokens has reached MaxTokens
             if (_mainSeq.InferState.RemainedTokens <= 0 && _mainSeq.InferParams.MaxTokens != -1)
             {
                 _mainSeq.InferState.State = SeqState.None;
@@ -126,9 +130,17 @@ namespace Llama.csharp
             return decoded;
         }
 
+        /// <summary>
+        /// Generates tokens based on the specified inference parameters and streams the results as strings.
+        /// </summary>
+        /// <param name="inferenceParams">The inference parameters (samplers, max tokens, anti-prompts, etc.).</param>
+        /// <returns>An async stream of decoded string pieces.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="inferenceParams"/> is null.</exception>
+        /// <exception cref="Exception">Thrown if the sequence has not been prefilled or is already generating.</exception>
+        /// <exception cref="LLamaDecodeError">Thrown if a decode step fails.</exception>
         public async IAsyncEnumerable<string> Generate(IInferenceParams inferenceParams)
         {
-            // простые проверки аргументов, без блокировки
+            // Simple argument checks, no locking needed
             #region Checks 
             if (inferenceParams == null) throw new ArgumentNullException();
             #endregion
@@ -136,12 +148,12 @@ namespace Llama.csharp
             await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
             try
             {
-                //проверки
+                // Verification
                 if (_mainSeq.InferParams.MaxTokens == 0) throw new Exception($"For prefill use ProcessPrompt");
 
                 _mainSeq.InferState.State = SeqState.Generation;
 
-                //инициализация для инференса
+                // Initialize inference state
                 _mainSeq.InferState = new InferStateArgs
                 {
                     State = SeqState.Generation,
@@ -152,7 +164,7 @@ namespace Llama.csharp
                 _mainSeq.AntipromptProc.ClearString();
                 _mainSeq.AntipromptProc.SetAntiprompts(inferenceParams.AntiPrompts ?? []);
                 _mainSeq.Decoder.DecodeSpecialTokens = _mainSeq.InferParams.DecodeSpecialTokens;
-                _mainSeq.TokensToPrefill.Clear(); //на всякий
+                _mainSeq.TokensToPrefill.Clear(); // Just in case
 
                 while (_mainSeq.InferState.State == SeqState.Generation)
                 {
@@ -169,7 +181,7 @@ namespace Llama.csharp
                         _mainSeq.InferParams.SamplingPipeline.Accept(llamaToken);
                     }
 
-                    _mainSeq.TokensToPrefill.Add(llamaToken); // добавляем в контейнер для декода моделью только что выбранный токен
+                    _mainSeq.TokensToPrefill.Add(llamaToken); // Add the newly sampled token to the container for decoding
                     #endregion
 
                     #region Decode
@@ -181,16 +193,16 @@ namespace Llama.csharp
 
                     if (res != DecodeResult.Ok)
                     {
-                        //по сути состояние не сбивается, можно пробовать снова без восстановления
+                        // The state remains consistent, so retrying without recovery is possible
                         throw new LLamaDecodeError(res);
                     }
 
                     _mainSeq.NextDecodedTokenPos++;
                     _mainSeq.LastLogits = LLamaTokenDataArray.Create(Context.NativeHandle.GetLogitsIth(batch.TokenCount - 1));
-                    _mainSeq.DecodedTokens.Add(_mainSeq.TokensToPrefill.Last()); //записываем токены embeds как отдекодированные
+                    _mainSeq.DecodedTokens.Add(_mainSeq.TokensToPrefill.Last()); // Record the embeds tokens as decoded
                     _mainSeq.TokensToPrefill.Clear();
-                    _mainSeq.InferState.TokenSampledAndDecoded = true; // надо делать постпроцессинг
-                    _mainSeq.InferState.RemainedTokens--; // уменьшить колво оставшихся для генерации токенов
+                    _mainSeq.InferState.TokenSampledAndDecoded = true; // Post-processing is required
+                    _mainSeq.InferState.RemainedTokens--; // Decrease the number of remaining tokens to generate
                     #endregion
 
                     string decoded = postProcessInfer();
@@ -203,6 +215,9 @@ namespace Llama.csharp
             }
         }
 
+        /// <summary>
+        /// Requests cancellation of the current generation. The stop takes effect before the next token is sampled.
+        /// </summary>
         public void StopGeneration()
         {
             _generationToken?.Cancel();
@@ -223,10 +238,10 @@ namespace Llama.csharp
 
 
         /// <summary>
-        /// Может пригодиться для клонирования контекста между последовательностями
+        /// Retrieves the current decoding position (<see cref="Sequence.NextDecodedTokenPos"/>).
+        /// Useful for context cloning between sequences.
         /// </summary>
-        /// <param name="seqId"></param>
-        /// <returns></returns>
+        /// <returns>The current value of <see cref="Sequence.NextDecodedTokenPos"/>.</returns>
         public async Task<int> GetNextDecodedTokenPos()
         {
             await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
@@ -241,10 +256,9 @@ namespace Llama.csharp
         }
 
         /// <summary>
-        /// 
+        /// Retrieves the list of tokens that have been decoded so far.
         /// </summary>
-        /// <param name="seqId"></param>
-        /// <returns></returns>
+        /// <returns>A read‑only list of <see cref="LLamaToken"/> values, or null if none.</returns>
         public async Task<IReadOnlyList<LLamaToken>?> GetDecodedTokens()
         {
             await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
@@ -259,10 +273,9 @@ namespace Llama.csharp
         }
 
         /// <summary>
-        /// 
+        /// Retrieves the last computed logits, if available.
         /// </summary>
-        /// <param name="seqId"></param>
-        /// <returns></returns>
+        /// <returns>The last <see cref="LLamaTokenDataArray"/>, or null if not yet computed.</returns>
         public async Task<LLamaTokenDataArray?> GetLastLogits()
         {
             await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
@@ -276,6 +289,13 @@ namespace Llama.csharp
             }
         }
 
+        /// <summary>
+        /// Samples a single token without decoding it (the model state is not advanced).
+        /// Useful for quick probing, e.g., when the context is [data] + [yes/no question]
+        /// and you want to peek at the answer without committing it.
+        /// </summary>
+        /// <param name="inferenceParams">The inference parameters to use for sampling.</param>
+        /// <returns>The decoded string piece corresponding to the sampled token.</returns>
         public string SampleOneTokenWithoutDecode(IInferenceParams inferenceParams)
         {
             if (_mainSeq.LastLogits == null) throw new Exception($"sequence {_mainSeq.Id} is empty");
@@ -283,18 +303,14 @@ namespace Llama.csharp
             LLamaToken llamaToken;
             using (var handle = LLamaTokenDataArrayNative.Create((LLamaTokenDataArray)_mainSeq.LastLogits, out var native))
             {
-                _mainSeq.InferParams.SamplingPipeline.Apply(ref native);
+                inferenceParams.SamplingPipeline.Apply(ref native);
                 llamaToken = native.Data[(int)native.Selected].ID;
-                //без Accept токена
+                // Do not call Accept – the token is not committed
             }
             string textPiece = "";
             _mainSeq.Decoder.Add(llamaToken);
             textPiece = _mainSeq.Decoder.Read();
             return textPiece;
         } 
-        // полезно в случае, когда контекст имеет вид [данные]+[вопрос с требованием печати одного токена да/нет и т.п.] мы получаем ответ с помощью sample
-        ////без его обработки декодом, далее удаляем блок с вопросом (с помощью функции удаления с изменением текущей позиции для новых токенов)
-        ////и можем добавлять новые данные в [данные] для новых вопросов. Быстро так как большая часть контекста обработана
-
     }
 }

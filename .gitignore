@@ -361,3 +361,23 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-base.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-cpu-alderlake.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-cpu-haswell.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-cpu-icelake.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-cpu-sandybridge.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-cpu-sapphirerapids.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-cpu-skylakex.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-cpu-sse42.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-cpu-x64.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-rpc.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml-vulkan.dll
+/Llama.csharp.IntegrationTest/llama_b7552/ggml.dll
+/Llama.csharp.IntegrationTest/llama_b7552/libcurl-x64.dll
+/Llama.csharp.IntegrationTest/llama_b7552/libomp140.x86_64.dll
+/Llama.csharp.IntegrationTest/llama_b7552/LICENSE-curl
+/Llama.csharp.IntegrationTest/llama_b7552/LICENSE-httplib
+/Llama.csharp.IntegrationTest/llama_b7552/LICENSE-jsonhpp
+/Llama.csharp.IntegrationTest/llama_b7552/LICENSE-linenoise
+/Llama.csharp.IntegrationTest/llama_b7552/llama.dll
+/Llama.csharp.IntegrationTest/llama_b7552/mtmd.dll

@@ -1,6 +1,4 @@
-﻿using CommunityToolkit.HighPerformance;
-using Llama.csharp.Extensions;
-using Llama.csharp.Native;
+﻿using Llama.csharp.Native;
 using System.Buffers;
 using System.Diagnostics;
 using System.Text;

@@ -13,8 +13,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Llama.csharp.IntegrationTes
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Элементы решения", "Элементы решения", "{754FC069-D67B-A9D7-50A1-8D1CA196D8F1}"
 	ProjectSection(SolutionItems) = preProject
+		assets\BatchGen.gif = assets\BatchGen.gif
+		assets\LaimIcon.png = assets\LaimIcon.png
+		assets\LaimMainWindow.png = assets\LaimMainWindow.png
+		assets\LAIMModelForm.png = assets\LAIMModelForm.png
 		LICENSE.txt = LICENSE.txt
-		llamacsharp_light.svg = llamacsharp_light.svg
+		assets\llamacsharp_light.svg = assets\llamacsharp_light.svg
 		doc\PublicDoc_EN.md = doc\PublicDoc_EN.md
 		doc\PublicDoc_RU.md = doc\PublicDoc_RU.md
 		README.md = README.md

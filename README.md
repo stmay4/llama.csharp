@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".\llamacsharp_light.svg" alt="llamacsharp Logo" width="500"/>
+  <img src="./assets/llamacsharp_light.svg" alt="llamacsharp Logo" width="500"/>
 </p>
 
 [RU-версия README](./README_RU.md)
@@ -211,6 +211,10 @@ Work with sequences can be performed independently (although there are also func
 
 More details in the [documentation](./doc/PublicDoc_EN.md).
 
+<p align="center">
+  <img src="./assets/BatchGen.gif" alt="batch demo" width="1000"/>
+</p>
+
 Full example code can be found in the **test_program** subproject of the repository in the methods `SimpleChat` and `BatchGenerator`. There are also other examples and more will be added.
 
 ## Public API Documentation
@@ -243,6 +247,7 @@ PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" with
 
 ## Plans
 
+- Keep up to date with the latest llama.cpp releases
 - Support for multimodal LLMs (audio and images): functions for tokenizing multimodal input and filling the context with such tokens
 - Adding an embeddings retrieval function (possibly, if a flag is set to true, obtaining them together with logits — needs further thought)
 - Support for saving sequence states (and context state in general?) to enable offloading part of the sequences to memory at runtime when context cache is insufficient
@@ -255,7 +260,15 @@ Projects using the library:
 ---
 
 *(the repository is currently private, preparation for opening is in progress)*<br>
-[**LAIM**](https://github.com/stmay4/LAIM) — a local server that provides programs on the computer with access to a GUI-configured list of LLMs via a low-level stateful API over named pipes, with functions for direct work with contexts and sequences from this library.<br>The project offers a ready-made integration library, Laim.Client, for the .NET platform.<br>A desktop GUI application for direct work with models — LAIMCHAT — is also under development.
+<img src="./assets/LaimIcon.png" alt="batch demo" width="15"/>  [**LAIM**](https://github.com/stmay4/LAIM) <br>
+Local server that provides programs on the computer with access to a GUI-configured list of LLMs via a low-level stateful API over named pipes, with functions for direct work with contexts and sequences from this library.<br>The project offers a ready-made integration library, Laim.Client, for the .NET platform.<br>A desktop GUI application for direct work with models — LAIMCHAT — is also under development.
+
+<p align="center">
+  <img src="./assets/LaimMainWindow.png" alt="batch demo" width="600"/>
+  <img src="./assets/LAIMModelForm.png" alt="batch demo" width="800"/>
+</p>
+
+Problems solved: duplication of models in memory when loading the same one in different programs, separate configuration of model loading parameters in each program, and the lack of direct client interaction with context and batch processing in popular alternatives.
 
 ---
 

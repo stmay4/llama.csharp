@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Llama.csharp.Native
 {
-    //
+    // C++
     // Sampling API
     //
     // Sample usage:
@@ -41,7 +41,7 @@ namespace Llama.csharp.Native
     // TODO: In the future, llama_sampler will be utilized to offload the sampling to the backends (e.g. GPU).
     //
 
-    //цепочка Pipeline для обработки декода и выбора токена
+    // Chain of samplers for processing logits and selecting a token.
     public sealed class SafeLLamaSamplerChainHandle
     : SafeLLamaHandleBase
     {
@@ -179,9 +179,8 @@ namespace Llama.csharp.Native
             LlamaCpp.Llama_SamplerFree(LlamaCpp.Llama_SamplerChainRemove(this, index));
         }
 
-        //добавление своих семплеров
         ///// <summary>
-        ///// Add a custom sampler stage
+        ///// Add a custom sampler stage. (not now)
         ///// </summary>
         ///// <typeparam name="TSampler"></typeparam>
         ///// <param name="sampler"></param>
@@ -350,18 +349,6 @@ namespace Llama.csharp.Native
         /// <summary>
         /// Create a sampler which makes tokens impossible unless they match the grammar.
         /// </summary>
-        /// <param name="model">The model that this grammar will be used with</param>
-        /// <param name="grammar"></param>
-        /// <param name="root">Root rule of the grammar</param>
-        /// <returns></returns>
-        public void AddGrammar(SafeLlamaModelHandle model, string grammar, string root)
-        {
-            AddGrammar(model.Vocab, grammar, root);
-        }
-
-        /// <summary>
-        /// Create a sampler which makes tokens impossible unless they match the grammar.
-        /// </summary>
         /// <param name="vocab">The vocabulary that this grammar will be used with</param>
         /// <param name="grammar"></param>
         /// <param name="root">Root rule of the grammar</param>
@@ -384,7 +371,7 @@ namespace Llama.csharp.Native
         /// <param name="triggerTokens">A list of tokens that will trigger the grammar sampler. Grammar sampler will be fed content starting from the trigger token included..</param>
         /// <returns></returns>
         public void AddLazyGrammar(
-            SafeLlamaModelHandle model,
+            SafeLlamaModelHandle.Vocabulary vocab,
             string grammar, string root,
             ReadOnlySpan<string> patterns,
             ReadOnlySpan<LLamaToken> triggerTokens)
@@ -394,7 +381,7 @@ namespace Llama.csharp.Native
                 LlamaCpp.Llama_SamplerChainAdd(
                     this,
                     LlamaCpp.Llama_SamplerInitGrammarLazyPatterns(
-                        model.Vocab.VocabNative,
+                        vocab.VocabNative,
                         grammar, root,
                         patterns.ToArray(),
                         triggerTokens.ToArray(), (nuint)triggerTokens.Length

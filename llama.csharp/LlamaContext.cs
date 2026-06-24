@@ -12,8 +12,6 @@ namespace Llama.csharp
 
         /// <summary>
         /// Total number of tokens in the context
-        /// нужен для того, чтобы при не заданном значении в параметрах загрузки вернуть значение из самой модели вызовом 
-        /// нативного метода
         /// </summary>
         public uint ContextSize => NativeHandle.ContextSize;
 
@@ -68,7 +66,7 @@ namespace Llama.csharp
         /// <param name="params"></param>
         /// <param name="logger"></param>
         /// <exception cref="ObjectDisposedException"></exception>
-        public LLamaContext(LLamaWeights model, IContextParams @params)//, ILogger? logger = null)
+        internal LLamaContext(LLamaWeights model, IContextParams @params)//, ILogger? logger = null)
         {
             if (model.NativeHandle.IsClosed)
                 throw new ObjectDisposedException("Cannot create context, model weights have been disposed");
@@ -416,142 +414,142 @@ namespace Llama.csharp
         /// <summary>
         /// The state of this context, which can be reloaded later
         /// </summary>
-        public class State
-            : SafeLLamaHandleBase
-        {
-            /// <summary>
-            /// Get the size in bytes of this state object
-            /// </summary>
-            public nuint Size { get; }
+        //public class State
+        //    : SafeLLamaHandleBase
+        //{
+        //    /// <summary>
+        //    /// Get the size in bytes of this state object
+        //    /// </summary>
+        //    public nuint Size { get; }
 
-            internal State(nint memory, nuint size)
-                : base(memory, true)
-            {
-                Size = size;
-            }
+        //    internal State(nint memory, nuint size)
+        //        : base(memory, true)
+        //    {
+        //        Size = size;
+        //    }
 
-            /// <inheritdoc />
-            protected override bool ReleaseHandle()
-            {
-                Marshal.FreeHGlobal(handle);
-                return true;
-            }
+        //    /// <inheritdoc />
+        //    protected override bool ReleaseHandle()
+        //    {
+        //        Marshal.FreeHGlobal(handle);
+        //        return true;
+        //    }
 
-            /// <summary>
-            /// Write all the bytes of this state to the given stream
-            /// </summary>
-            /// <param name="stream"></param>
-            public async Task SaveAsync(Stream stream)
-            {
-                UnmanagedMemoryStream from;
-                unsafe
-                {
-                    var length = (long)Size;
-                    from = new UnmanagedMemoryStream((byte*)handle.ToPointer(), length, length, FileAccess.Read);
-                }
-                await from.CopyToAsync(stream);
-            }
+        //    /// <summary>
+        //    /// Write all the bytes of this state to the given stream
+        //    /// </summary>
+        //    /// <param name="stream"></param>
+        //    public async Task SaveAsync(Stream stream)
+        //    {
+        //        UnmanagedMemoryStream from;
+        //        unsafe
+        //        {
+        //            var length = (long)Size;
+        //            from = new UnmanagedMemoryStream((byte*)handle.ToPointer(), length, length, FileAccess.Read);
+        //        }
+        //        await from.CopyToAsync(stream);
+        //    }
 
-            /// <summary>
-            /// Write all the bytes of this state to the given stream
-            /// </summary>
-            /// <param name="stream"></param>
-            public void Save(Stream stream)
-            {
-                UnmanagedMemoryStream from;
-                unsafe
-                {
-                    var length = (long)Size;
-                    from = new UnmanagedMemoryStream((byte*)handle.ToPointer(), length, length, FileAccess.Read);
-                }
-                from.CopyTo(stream);
-            }
+        //    /// <summary>
+        //    /// Write all the bytes of this state to the given stream
+        //    /// </summary>
+        //    /// <param name="stream"></param>
+        //    public void Save(Stream stream)
+        //    {
+        //        UnmanagedMemoryStream from;
+        //        unsafe
+        //        {
+        //            var length = (long)Size;
+        //            from = new UnmanagedMemoryStream((byte*)handle.ToPointer(), length, length, FileAccess.Read);
+        //        }
+        //        from.CopyTo(stream);
+        //    }
 
-            /// <summary>
-            /// Load a state from a stream
-            /// </summary>
-            /// <param name="stream"></param>
-            /// <returns></returns>
-            public static async Task<State> LoadAsync(Stream stream)
-            {
-                var memory = Marshal.AllocHGlobal((nint)stream.Length);
-                var state = new State(memory, (nuint)stream.Length);
+        //    /// <summary>
+        //    /// Load a state from a stream
+        //    /// </summary>
+        //    /// <param name="stream"></param>
+        //    /// <returns></returns>
+        //    public static async Task<State> LoadAsync(Stream stream)
+        //    {
+        //        var memory = Marshal.AllocHGlobal((nint)stream.Length);
+        //        var state = new State(memory, (nuint)stream.Length);
 
-                UnmanagedMemoryStream dest;
-                unsafe
-                {
-                    var length = stream.Length;
-                    dest = new UnmanagedMemoryStream((byte*)memory.ToPointer(), length, length, FileAccess.Write);
-                }
-                await stream.CopyToAsync(dest);
+        //        UnmanagedMemoryStream dest;
+        //        unsafe
+        //        {
+        //            var length = stream.Length;
+        //            dest = new UnmanagedMemoryStream((byte*)memory.ToPointer(), length, length, FileAccess.Write);
+        //        }
+        //        await stream.CopyToAsync(dest);
 
-                return state;
-            }
+        //        return state;
+        //    }
 
-            /// <summary>
-            /// Load a state from a stream
-            /// </summary>
-            /// <param name="stream"></param>
-            /// <returns></returns>
-            public static State Load(Stream stream)
-            {
-                var memory = Marshal.AllocHGlobal((nint)stream.Length);
-                var state = new State(memory, (nuint)stream.Length);
+        //    /// <summary>
+        //    /// Load a state from a stream
+        //    /// </summary>
+        //    /// <param name="stream"></param>
+        //    /// <returns></returns>
+        //    public static State Load(Stream stream)
+        //    {
+        //        var memory = Marshal.AllocHGlobal((nint)stream.Length);
+        //        var state = new State(memory, (nuint)stream.Length);
 
-                UnmanagedMemoryStream dest;
-                unsafe
-                {
-                    var length = stream.Length;
-                    dest = new UnmanagedMemoryStream((byte*)memory.ToPointer(), length, length, FileAccess.Write);
-                }
-                stream.CopyTo(dest);
+        //        UnmanagedMemoryStream dest;
+        //        unsafe
+        //        {
+        //            var length = stream.Length;
+        //            dest = new UnmanagedMemoryStream((byte*)memory.ToPointer(), length, length, FileAccess.Write);
+        //        }
+        //        stream.CopyTo(dest);
 
-                return state;
-            }
-        }
+        //        return state;
+        //    }
+        //}
 
         /// <summary>
         /// The state of a single sequence, which can be reloaded later
         /// </summary>
-        public class SequenceState
-            : SafeLLamaHandleBase
-        {
-            private readonly nuint _size;
-            /// <summary>
-            /// Get the size in bytes of this state object
-            /// </summary>
-            public nuint Size => _size;
+        //public class SequenceState
+        //    : SafeLLamaHandleBase
+        //{
+        //    private readonly nuint _size;
+        //    /// <summary>
+        //    /// Get the size in bytes of this state object
+        //    /// </summary>
+        //    public nuint Size => _size;
 
-            internal SequenceState(nint memory, nuint size)
-                : base(memory, true)
-            {
-                _size = size;
-            }
+        //    internal SequenceState(nint memory, nuint size)
+        //        : base(memory, true)
+        //    {
+        //        _size = size;
+        //    }
 
-            /// <inheritdoc />
-            protected override bool ReleaseHandle()
-            {
-                Marshal.FreeHGlobal(handle);
-                return true;
-            }
+        //    /// <inheritdoc />
+        //    protected override bool ReleaseHandle()
+        //    {
+        //        Marshal.FreeHGlobal(handle);
+        //        return true;
+        //    }
 
-            /// <summary>
-            /// Copy bytes to a destination pointer.
-            /// </summary>
-            /// <param name="dst">Destination to write to</param>
-            /// <param name="length">Length of the destination buffer</param>
-            /// <param name="offset">Offset from start of src to start copying from</param>
-            /// <returns>Number of bytes written to destination</returns>
-            public unsafe ulong CopyTo(byte* dst, ulong length, ulong offset = 0)
-            {
-                var copy = Math.Min(length, _size - offset);
+        //    /// <summary>
+        //    /// Copy bytes to a destination pointer.
+        //    /// </summary>
+        //    /// <param name="dst">Destination to write to</param>
+        //    /// <param name="length">Length of the destination buffer</param>
+        //    /// <param name="offset">Offset from start of src to start copying from</param>
+        //    /// <returns>Number of bytes written to destination</returns>
+        //    public unsafe ulong CopyTo(byte* dst, ulong length, ulong offset = 0)
+        //    {
+        //        var copy = Math.Min(length, _size - offset);
 
-                var src = (byte*)DangerousGetHandle();
-                src += offset;
+        //        var src = (byte*)DangerousGetHandle();
+        //        src += offset;
 
-                Buffer.MemoryCopy(src, dst, length, copy);
-                return copy;
-            }
-        }
+        //        Buffer.MemoryCopy(src, dst, length, copy);
+        //        return copy;
+        //    }
+        //}
     }
 }

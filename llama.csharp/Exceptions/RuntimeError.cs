@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace Llama.csharp.Exceptions;
 
 /// <summary>
-/// Base class for LLamaSharp runtime errors (i.e. errors produced by llama.cpp, converted into exceptions)
+/// Base class for llama.csharp (previously LLamaSharp) runtime errors (i.e. errors produced by llama.cpp, converted into exceptions)
 /// </summary>
 public class RuntimeError
     : Exception
@@ -107,5 +107,16 @@ public class GetLogitsInvalidIndexException
         : base($"llama_get_logits_ith({index}) returned null")
     {
         Index = index;
+    }
+}
+
+public class ContextFullException
+    : RuntimeError
+{
+
+    /// <inheritdoc />
+    public ContextFullException()
+        : base($"Context full!")
+    {
     }
 }

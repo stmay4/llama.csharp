@@ -8,12 +8,12 @@ namespace Llama.csharp.Native
     /// </summary>
     public class LLamaBatch
     {
-        private byte[] _logits;// для каких токенов возвращать логиты 1 - да, 0 - нет
+        private byte[] _logits; // for which tokens to return logits - 1 for yes, 0 for no
 
-        private LLamaToken[] _tokens; //текущие токены для декодирования
-        private LLamaPos[] _positions; // текущие позиции токенов для декодирования в последовательности
-        //полезно для сохранения оригинальных позиций при вырезании контекста, которое видимо допустимо при RoPE позиционировании
-        //KV-cache в llama.cpp также индексируется по pos, а не по порядку обработки
+        private LLamaToken[] _tokens; // current tokens for decoding
+        private LLamaPos[] _positions; // current positions of tokens for decoding in the sequence
+        // usefull for cutting end or center (if ROPE)
+                                       // KV-cache in llama.cpp is also indexed by pos, not by processing order
 
         private int[] _sequenceIdCount;
         private LLamaSeqId[][] _sequenceIds;

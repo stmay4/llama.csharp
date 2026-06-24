@@ -2,6 +2,9 @@
 
 namespace Llama.csharp.Native
 {
+    /// <summary>
+    /// PARTIAL context functions
+    /// </summary>
     public static partial class LlamaCpp
     {
         #region LLAMA API functions
@@ -302,6 +305,113 @@ namespace Llama.csharp.Native
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private unsafe delegate int llama_apply_adapter_cvec(SafeLLamaContextHandle ctx, float* data, nuint len, int n_embd, int il_start, int il_end);
 
+        /// <summary>
+        ///   LLAMA_API  llama_memory_t   llama_get_memory  (const struct llama_context * ctx);
+        /// </summary>
+        /// <param name="ctx"></param>
+        /// <returns></returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr llama_get_memory(SafeLLamaContextHandle ctx);
+
+        /// <summary>
+        /// Clear the memory contents. If data == true, the data buffers will also be cleared together with the metadata
+        /// </summary>
+        /// <param name="mem"></param>
+        /// <param name="data"></param>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void llama_memory_clear(IntPtr /* llama_memory_t */ mem, [MarshalAs(UnmanagedType.U1)] bool data);
+
+        /// <summary>
+        /// Removes all tokens that belong to the specified sequence and have positions in [p0, p1)
+        /// </summary>
+        /// <param name="mem"></param>
+        /// <param name="seq"></param>
+        /// <param name="p0"></param>
+        /// <param name="p1"></param>
+        /// <returns>Returns false if a partial sequence cannot be removed. Removing a whole sequence never fails</returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private delegate bool llama_memory_seq_rm(IntPtr /* llama_memory_t */ mem, LLamaSeqId seq, LLamaPos p0, LLamaPos p1);
+
+        /// <summary>
+        /// Copy all tokens that belong to the specified sequence to another sequence
+        /// Note that this does not allocate extra KV cache memory - it simply assigns the tokens to the new sequence
+        /// </summary>
+        /// <param name="mem"></param>
+        /// <param name="src"></param>
+        /// <param name="dest"></param>
+        /// <param name="p0">p0 &lt; 0 : [0,  p1]</param>
+        /// <param name="p1">p1 &lt; 0 : [p0, inf)</param>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void llama_memory_seq_cp(IntPtr /* llama_memory_t */ mem, LLamaSeqId src, LLamaSeqId dest, LLamaPos p0, LLamaPos p1);
+
+        /// <summary>
+        /// Removes all tokens that do not belong to the specified sequence
+        /// </summary>
+        /// <param name="mem"></param>
+        /// <param name="seq"></param>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void llama_memory_seq_keep(IntPtr /* llama_memory_t */ mem, LLamaSeqId seq);
+
+        /// <summary>
+        /// Adds relative position "delta" to all tokens that belong to the specified sequence and have positions in [p0, p1)
+        /// </summary>
+        /// <param name="mem"></param>
+        /// <param name="seq"></param>
+        /// <param name="p0">p0 &lt; 0 : [0,  p1]</param>
+        /// <param name="p1">p1 &lt; 0 : [p0, inf)</param>
+        /// <param name="delta"></param>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void llama_memory_seq_add(IntPtr /* llama_memory_t */ mem, LLamaSeqId seq, LLamaPos p0, LLamaPos p1, LLamaPos delta);
+
+        /// <summary>
+        /// Integer division of the positions by factor of `d > 1`
+        /// <br />
+        /// p0 &lt; 0 : [0,  p1]
+        /// <br />
+        /// p1 &lt; 0 : [p0, inf)
+        /// </summary>
+        /// <param name="mem"></param>
+        /// <param name="seq"></param>
+        /// <param name="p0">p0 &lt; 0 : [0,  p1]</param>
+        /// <param name="p1">p1 &lt; 0 : [p0, inf)</param>
+        /// <param name="d"></param>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void llama_memory_seq_div(IntPtr /* llama_memory_t */ mem, LLamaSeqId seq, LLamaPos p0, LLamaPos p1, int d);
+
+        /// <summary>
+        /// Returns the smallest position present in the memory for the specified sequence.
+        /// This is typically non-zero only for SWA caches.
+        /// Note that all positions in the range [pos_min, pos_max] are guaranteed to be present in the memory.
+        /// Return -1 if the sequence is empty.
+        /// </summary>
+        /// <param name="mem"></param>
+        /// <param name="seq"></param>
+        /// <returns></returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate LLamaPos llama_memory_seq_pos_min(IntPtr /* llama_memory_t */ mem, LLamaSeqId seq);
+
+        /// <summary>
+        /// Returns the largest position present in the memory for the specified sequence.
+        /// Note that all positions in the range [pos_min, pos_max] are guaranteed to be present in the memory.
+        /// Return -1 if the sequence is empty.
+        /// </summary>
+        /// <param name="mem"></param>
+        /// <param name="seq"></param>
+        /// <returns></returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate LLamaPos llama_memory_seq_pos_max(IntPtr /* llama_memory_t */ mem, LLamaSeqId seq);
+
+        /// <summary>
+        /// Check if the memory supports shifting
+        /// </summary>
+        /// <param name="mem"></param>
+        /// <returns></returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private delegate bool llama_memory_can_shift(IntPtr /* llama_memory_t */ mem);
+
+
         #endregion
         #region functions
 
@@ -339,6 +449,13 @@ namespace Llama.csharp.Native
         private static llama_set_warmup _llama_set_warmup;
         private static llama_context_default_params _llama_context_default_params;
         private static llama_apply_adapter_cvec _llama_apply_adapter_cvec;
+        private static llama_get_memory _llama_get_memory;
+        private static llama_memory_clear       _llama_memory_clear;
+        private static llama_memory_seq_rm      _llama_memory_seq_rm;
+        private static llama_memory_seq_cp      _llama_memory_seq_cp;
+        private static llama_memory_seq_keep    _llama_memory_seq_keep;
+        private static llama_memory_seq_pos_min _llama_memory_seq_pos_min;
+        private static llama_memory_seq_pos_max _llama_memory_seq_pos_max;
 
         #endregion
         #endregion
@@ -352,7 +469,7 @@ namespace Llama.csharp.Native
         #endregion
 
         /// <summary>
-        /// <purpose> Задает указатели на функции llama cpp, необходимые SafeLlamaContextHandle </purpose>
+        /// <purpose> load functions for SafeLlamaContextHandle </purpose>
         /// </summary>
         private static void LoadContextFunctions()
         {
@@ -381,15 +498,22 @@ namespace Llama.csharp.Native
             _llama_perf_context_print = GetLibFunction<llama_perf_context_print>(_llamaHandle, "llama_perf_context_print");
             _llama_perf_context_reset = GetLibFunction<llama_perf_context_reset>(_llamaHandle, "llama_perf_context_reset");
             _llama_synchronize = GetLibFunction<llama_synchronize>(_llamaHandle, "llama_synchronize");
-            _llama_set_adapter_lora = GetLibFunction<llama_set_adapter_lora>(_llamaHandle, "llama_set_adapter_lora");
-            _llama_rm_adapter_lora = GetLibFunction<llama_rm_adapter_lora>(_llamaHandle, "llama_rm_adapter_lora");
-            _llama_clear_adapter_lora = GetLibFunction<llama_clear_adapter_lora>(_llamaHandle, "llama_clear_adapter_lora");
+            //_llama_set_adapter_lora = GetLibFunction<llama_set_adapter_lora>(_llamaHandle, "llama_set_adapter_lora");
+            //_llama_rm_adapter_lora = GetLibFunction<llama_rm_adapter_lora>(_llamaHandle, "llama_rm_adapter_lora");
+            //_llama_clear_adapter_lora = GetLibFunction<llama_clear_adapter_lora>(_llamaHandle, "llama_clear_adapter_lora");
             _llama_pooling_type = GetLibFunction<llama_pooling_type>(_llamaHandle, "llama_pooling_type");
             _llama_get_embeddings = GetLibFunction<llama_get_embeddings>(_llamaHandle, "llama_get_embeddings");
             _llama_get_embeddings_seq = GetLibFunction<llama_get_embeddings_seq>(_llamaHandle, "llama_get_embeddings_seq");
             _llama_get_embeddings_ith = GetLibFunction<llama_get_embeddings_ith>(_llamaHandle, "llama_get_embeddings_ith");
             _llama_set_warmup = GetLibFunction<llama_set_warmup>(_llamaHandle, "llama_set_warmup");
-            _llama_apply_adapter_cvec = GetLibFunction<llama_apply_adapter_cvec>(_llamaHandle, "llama_apply_adapter_cvec");
+            //_llama_apply_adapter_cvec = GetLibFunction<llama_apply_adapter_cvec>(_llamaHandle, "llama_apply_adapter_cvec");
+            _llama_get_memory       = GetLibFunction<llama_get_memory>(_llamaHandle, "llama_get_memory");
+            _llama_memory_clear     = GetLibFunction<llama_memory_clear>(_llamaHandle, "llama_memory_clear");
+            _llama_memory_seq_rm    = GetLibFunction<llama_memory_seq_rm>(_llamaHandle, "llama_memory_seq_rm");    
+            _llama_memory_seq_cp    = GetLibFunction<llama_memory_seq_cp>(_llamaHandle, "llama_memory_seq_cp");
+            _llama_memory_seq_keep  = GetLibFunction<llama_memory_seq_keep>(_llamaHandle, "llama_memory_seq_keep");
+            _llama_memory_seq_pos_min = GetLibFunction<llama_memory_seq_pos_min>(_llamaHandle, "llama_memory_seq_pos_min");
+            _llama_memory_seq_pos_max = GetLibFunction<llama_memory_seq_pos_max>(_llamaHandle, "llama_memory_seq_pos_max");
         }
 
         public static LLamaContextParams Llama_ContextDefaultParams()
@@ -666,6 +790,42 @@ namespace Llama.csharp.Native
         {
             EnsureInitialized();
             return _llama_apply_adapter_cvec(ctx, data, len, n_embd, il_start, il_end);
+        }
+
+        public static void Llama_ContextMemoryClear(SafeLLamaContextHandle ctx, bool data)
+        {
+            EnsureInitialized();
+            _llama_memory_clear(_llama_get_memory(ctx), data);
+        }
+
+        public static bool Llama_ContextMemorySeqRemove(SafeLLamaContextHandle ctx, LLamaSeqId seq, LLamaPos p0, LLamaPos p1)
+        {
+            EnsureInitialized();
+            return _llama_memory_seq_rm(_llama_get_memory(ctx), seq, p0, p1);
+        }
+
+        public static void Llama_ContextMemorySeqCopy(SafeLLamaContextHandle ctx, LLamaSeqId src, LLamaSeqId dest, LLamaPos p0, LLamaPos p1)
+        {
+            EnsureInitialized();
+            _llama_memory_seq_cp(_llama_get_memory(ctx), src, dest, p0, p1);
+        }
+
+        public static void Llama_ContextMemorySeqKeep(SafeLLamaContextHandle ctx, LLamaSeqId seq)
+        {
+            EnsureInitialized();
+            _llama_memory_seq_keep(_llama_get_memory(ctx), seq);
+        }
+
+        public static LLamaPos Llama_ContextMemorySeqPosMin(SafeLLamaContextHandle ctx, LLamaSeqId seq)
+        {
+            EnsureInitialized();
+            return _llama_memory_seq_pos_min(_llama_get_memory(ctx), seq);
+        }
+
+        public static LLamaPos Llama_ContextMemorySeqPosMax(SafeLLamaContextHandle ctx, LLamaSeqId seq)
+        {
+            EnsureInitialized();
+            return _llama_memory_seq_pos_max(_llama_get_memory(ctx), seq);
         }
     }
 }

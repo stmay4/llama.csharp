@@ -1,6 +1,6 @@
 ﻿namespace Llama.csharp.Native
 {
-    /// <remarks>llama_attention_type</remarks>
+    /// <remarks>C++ llama_attention_type</remarks>
     public enum LLamaAttentionType
     {
         /// <summary>

@@ -56,6 +56,9 @@ namespace Llama.csharp.Extensions
                 result.kv_overrides = (LLamaModelMetadataOverride*)nint.Zero;
             }
 
+            result.no_host = @params.NoHost;
+            result.no_alloc = @params.NoAlloc;
+
 
             return disposer;
         }

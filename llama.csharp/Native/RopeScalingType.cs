@@ -1,7 +1,7 @@
 ﻿namespace Llama.csharp.Native
 {
     /// <summary>
-    /// llama_rope_scaling_type
+    /// С++ llama_rope_scaling_type
     /// </summary>
     public enum RopeScalingType
     {

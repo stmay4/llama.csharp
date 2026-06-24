@@ -3,7 +3,7 @@
 namespace Llama.csharp.Native
 {
     /// <summary>
-    /// llama_perf_context_data
+    /// C++ llama_perf_context_data
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct LLamaPerfContextTimings
@@ -29,12 +29,12 @@ namespace Llama.csharp.Native
         private double t_eval_ms;
 
         /// <summary>
-        /// number of tokens in eval calls for the prompt (with batch size > 1)
+        /// number of prompt tokens
         /// </summary>
         private int n_p_eval;
 
         /// <summary>
-        /// number of eval calls
+        /// number of generated tokens
         /// </summary>
         private int n_eval;
 
@@ -66,7 +66,7 @@ namespace Llama.csharp.Native
         /// <summary>
         /// number of tokens in eval calls for the prompt (with batch size > 1)
         /// </summary>
-        public readonly int PrompTokensEvaluated => n_p_eval;
+        public readonly int PromptTokensEvaluated => n_p_eval;
 
         /// <summary>
         /// number of eval calls
@@ -82,7 +82,7 @@ namespace Llama.csharp.Native
     /// <summary>
     /// LLama performance information
     /// </summary>
-    /// <remarks>llama_perf_sampler_data</remarks>
+    /// <remarks>C++ llama_perf_sampler_data</remarks>
     [StructLayout(LayoutKind.Sequential)]
     public struct LLamaSamplingTimings
     {

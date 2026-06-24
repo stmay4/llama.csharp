@@ -3,22 +3,23 @@
 namespace Llama.csharp.Native
 {
     /// <summary>
-    /// <tips> Библиотеки явно не выгружаются с помощью NativeLibrary.Free во время работы приложения, 
-    /// так как llama cpp может создавать свои потоки, которые таким образом не остановить - требует проверки (backend_free и подобное) </tips>
+    /// PARTIAL main part. Init llama.csharp (load libs)
+    /// Libraries are not explicitly unloaded using NativeLibrary.Free during application runtime,
+    /// because llama.cpp may create its own threads that cannot be stopped this way - requires verification (backend_free and similar).
     /// </summary>
     public static partial class LlamaCpp
     {
-        private static bool _initialized = false;
-        private static readonly object _initLock = new();
+        private static bool _initialized = false; // state flag
+        private static readonly object _initLock = new(); //init sync
 
-        // Дескрипторы загруженных библиотек
+        // Handles of loaded libraries
         private static IntPtr _llamaHandle = IntPtr.Zero;
         private static IntPtr _ggmlHandle = IntPtr.Zero;
         private static IntPtr _ggmlBaseHandle = IntPtr.Zero;
 
         #region LLAMA API functions
 
-        // Делегаты для функций
+        // Delegates for functions
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate long llama_max_devices();
 
@@ -50,7 +51,7 @@ namespace Llama.csharp.Native
         private delegate bool llama_supports_mlock();
 
 
-        // Экземпляры делегатов
+        // Delegate instances
         private static llama_max_devices _llama_max_devices;
         private static llama_backend_init _llama_backend_init;
         private static llama_print_system_info _llama_print_system_info;
@@ -63,7 +64,13 @@ namespace Llama.csharp.Native
 
         #region delegates
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate void ggml_backend_load([MarshalAs(UnmanagedType.LPStr)] string backendPath);
+        private delegate IntPtr ggml_backend_load([MarshalAs(UnmanagedType.LPStr)] string backendPath);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr ggml_backend_init_by_type(GGMLBackendDevType type, IntPtr @params);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr ggml_backend_init_best();
 
         /// <summary>
         /// Get the number of available backend devices
@@ -80,13 +87,15 @@ namespace Llama.csharp.Native
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate IntPtr ggml_backend_dev_get(nuint i);
 
-        
+
 
         #endregion
 
         #region functions
 
         private static ggml_backend_load _ggml_backend_load;
+        private static ggml_backend_init_best _ggml_backend_init_best;
+        private static ggml_backend_init_by_type _ggml_backend_init_by_type;
         private static ggml_backend_dev_count _ggml_backend_dev_count;
         private static ggml_backend_dev_get _ggml_backend_dev_get;
 
@@ -128,8 +137,8 @@ namespace Llama.csharp.Native
         static LlamaCpp() { }
 
         /// <summary>
-        /// <purpose> Выполняет инициализацию: загрузка библиотек llama cpp, получение функций библиотек,
-        /// инициализация и загрузка бекендов. </purpose>
+        /// <purpose> Performs initialization: loading llama.cpp libraries, retrieving library functions,
+        /// initializing and loading backends. </purpose>
         /// </summary>
         /// <exception cref="DirectoryNotFoundException"></exception>
         /// <exception cref="DllNotFoundException"></exception>
@@ -147,12 +156,12 @@ namespace Llama.csharp.Native
 
                 ValidateListParameter(backendPaths, nameof(backendPaths));
 
-                // Загружаем основные библиотеки
+                // Loading main libraries
                 _llamaHandle = LoadNativeLibrary(llamaPath, "llama.cpp");
                 _ggmlHandle = LoadNativeLibrary(ggmlPath, "GGML");
                 _ggmlBaseHandle = LoadNativeLibrary(ggmlBasePath, "GGML Base");
 
-                // Получаем указатели на функции
+                // Getting pointers to functions
                 _llama_max_devices = GetLibFunction<llama_max_devices>(_llamaHandle, "llama_max_devices");
                 _llama_backend_init = GetLibFunction<llama_backend_init>(_llamaHandle, "llama_backend_init");
                 _llama_print_system_info = GetLibFunction<llama_print_system_info>(_llamaHandle, "llama_print_system_info");
@@ -160,6 +169,8 @@ namespace Llama.csharp.Native
                 _llama_supports_mlock = GetLibFunction<llama_supports_mlock>(_llamaHandle, "llama_supports_mlock");
 
                 _ggml_backend_load = GetLibFunction<ggml_backend_load>(_ggmlHandle, "ggml_backend_load");
+                _ggml_backend_init_by_type = GetLibFunction<ggml_backend_init_by_type>(_ggmlHandle, "ggml_backend_init_by_type");
+                _ggml_backend_init_best = GetLibFunction<ggml_backend_init_best>(_ggmlHandle, "ggml_backend_init_best");
                 _ggml_backend_dev_count = GetLibFunction<ggml_backend_dev_count>(_ggmlHandle, "ggml_backend_dev_count");
                 _ggml_backend_dev_get = GetLibFunction<ggml_backend_dev_get>(_ggmlHandle, "ggml_backend_dev_get");
 
@@ -171,15 +182,27 @@ namespace Llama.csharp.Native
                 LoadContextFunctions();
                 LoadSamplerFunctions();
 
-                // Выполняем инициализацию
-                _llama_max_devices();
-                _llama_backend_init();
 
-                // Загружаем бэкенды
+                // Loading backends. You only specify the backends you use, currently without auto selection
                 foreach (string backend in backendPaths)
                 {
-                    _ggml_backend_load(backend);
+                    IntPtr ptr = _ggml_backend_load(backend);
+                    if (ptr == IntPtr.Zero) 
+                    {
+                        throw new Exception($"Loading backend {backend} fail");
+                    }
                 }
+                //if (bestCPU)
+                //{
+                //    IntPtr ptr = _ggml_backend_init_best();
+                //    if (ptr == IntPtr.Zero)
+                //    {
+                //        throw new Exception($"Loading best CPU backend fail");
+                //    }
+                //}
+
+                // Performing initialization
+                _llama_backend_init();
 
                 _initialized = true;
             }
@@ -227,13 +250,13 @@ namespace Llama.csharp.Native
         }
 
         /// <summary>
-        /// <purpose> Предназначен для возврата ссылки на функцию по ее имени </purpose>
+        /// <purpose> Retrieves a function pointer by its name. </purpose>
         /// </summary>
-        /// <typeparam name="Delegate"></typeparam>
-        /// <param name="libraryHandle"> Ссылка на библиотеку </param>
-        /// <param name="functionName"> Имя функции, ссылку на которую надо получить </param>
-        /// <returns> Возвращает ссылку на функцию библиотеки </returns>
-        /// <exception cref="EntryPointNotFoundException"> функция не найдена </exception>
+        /// <typeparam name="Delegate">The delegate type of the function to retrieve.</typeparam>
+        /// <param name="libraryHandle">Handle to the loaded library.</param>
+        /// <param name="functionName">Name of the function to retrieve.</param>
+        /// <returns>A delegate referencing the library function.</returns>
+        /// <exception cref="EntryPointNotFoundException">Thrown when the specified function is not found in the library.</exception>
         private static Delegate GetLibFunction<Delegate>(IntPtr libraryHandle, string functionName)
         {
             if (libraryHandle == IntPtr.Zero) throw new ArgumentNullException("Library handle is null");
@@ -249,9 +272,9 @@ namespace Llama.csharp.Native
         }
 
         /// <summary>
-        /// <purpose> Проверяет инициализацию библиотеки </purpose>
+        /// <purpose> Verifies that the library has been initialized. </purpose>
         /// </summary>
-        /// <exception cref="InvalidOperationException"> Библиотеки не загружены </exception>
+        /// <exception cref="InvalidOperationException"> Thrown when the libraries have not been loaded. </exception>
         private static void EnsureInitialized()
         {
             if (!_initialized)
@@ -259,21 +282,14 @@ namespace Llama.csharp.Native
         }
 
         /// <summary>
-        /// <purpose> Выполняет функцию API llama.h - llama_max_devices </purpose>
+        /// <purpose> API function from llama.h - llama_max_devices </purpose>
         /// </summary>
-        /// <returns> Возвращает количество устройств для вывода </returns>
+        /// <returns> </returns>
         public static long Llama_GetMaxDevices()
         {
             EnsureInitialized();
             return _llama_max_devices();
         }
-
-        //#pragma warning disable CS0626 // Method, operator, or accessor is marked external and has no attributes on it
-        //        /// <summary>
-        //        /// Call once at the end of the program - currently only used for MPI (MPI (Message Passing Interface) — это стандарт интерфейса для передачи сообщений между процессами в параллельных вычислениях. кластера ПК)
-        //        /// </summary>
-        //        public static extern void llama_backend_free();
-        //#pragma warning restore CS0626 // Method, operator, or accessor is marked external and has no attributes on it
 
         public static nuint GGML_BackendDevCount()
         {
@@ -390,7 +406,7 @@ namespace Llama.csharp.Native
 
 
 
-        
+
         ///// <summary>
         ///// Apply chat template. Inspired by hf apply_chat_template() on python.
         ///// </summary>

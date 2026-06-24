@@ -1,6 +1,4 @@
-﻿using CommunityToolkit.HighPerformance;
-using Llama.csharp.Extensions;
-using Llama.csharp.Native;
+﻿using Llama.csharp.Native;
 using System.Buffers;
 using System.Diagnostics;
 using System.Text;
@@ -99,7 +97,7 @@ namespace Llama.csharp
                     bytesAvailable -= bytesUsed;
 
                     // Add the decoded characters to the output buffer
-                    _characters.AddSpan(charsArr.AsSpan(0, charsUsed));
+                    _characters.AddRange(charsArr.AsSpan(0, charsUsed));
                 }
             }
             finally

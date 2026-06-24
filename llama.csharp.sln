@@ -7,6 +7,24 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Llama.csharp", "llama.cshar
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Llama.csharp.test_program", "Llama.csharp.test_program\Llama.csharp.test_program.csproj", "{80C8D5B7-44AC-47F5-B1E1-A9FA9D92C999}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Llama.csharp.UnitTests", "Llama.csharp.UnitTests\Llama.csharp.UnitTests.csproj", "{1E720BD0-56D1-4C8A-932F-9A481A143E7D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Llama.csharp.IntegrationTest", "Llama.csharp.IntegrationTest\Llama.csharp.IntegrationTest.csproj", "{520F1586-AA0D-4536-B0FB-B03C90AE445E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Элементы решения", "Элементы решения", "{754FC069-D67B-A9D7-50A1-8D1CA196D8F1}"
+	ProjectSection(SolutionItems) = preProject
+		assets\BatchGen.gif = assets\BatchGen.gif
+		assets\LaimIcon.png = assets\LaimIcon.png
+		assets\LaimMainWindow.png = assets\LaimMainWindow.png
+		assets\LAIMModelForm.png = assets\LAIMModelForm.png
+		LICENSE.txt = LICENSE.txt
+		assets\llamacsharp_light.svg = assets\llamacsharp_light.svg
+		doc\PublicDoc_EN.md = doc\PublicDoc_EN.md
+		doc\PublicDoc_RU.md = doc\PublicDoc_RU.md
+		README.md = README.md
+		README_RU.md = README_RU.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +39,14 @@ Global
 		{80C8D5B7-44AC-47F5-B1E1-A9FA9D92C999}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{80C8D5B7-44AC-47F5-B1E1-A9FA9D92C999}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{80C8D5B7-44AC-47F5-B1E1-A9FA9D92C999}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1E720BD0-56D1-4C8A-932F-9A481A143E7D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1E720BD0-56D1-4C8A-932F-9A481A143E7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1E720BD0-56D1-4C8A-932F-9A481A143E7D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1E720BD0-56D1-4C8A-932F-9A481A143E7D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{520F1586-AA0D-4536-B0FB-B03C90AE445E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{520F1586-AA0D-4536-B0FB-B03C90AE445E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{520F1586-AA0D-4536-B0FB-B03C90AE445E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{520F1586-AA0D-4536-B0FB-B03C90AE445E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

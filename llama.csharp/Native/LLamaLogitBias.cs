@@ -4,6 +4,7 @@ namespace Llama.csharp.Native
 {
     /// <summary>
     /// A bias to apply directly to a logit. Equivalent llama_logit_bias
+    /// For samplers
     /// </summary>
     /// <remarks>
     /// 

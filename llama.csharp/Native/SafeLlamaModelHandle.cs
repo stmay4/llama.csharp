@@ -73,6 +73,16 @@ namespace Llama.csharp.Native
         public bool IsRecurrent => LlamaCpp.Llama_ModelIsRecurrent(this);
 
         /// <summary>
+        /// Returns true if the model is hybrid (like Jamba, Granite, etc.)
+        /// </summary>
+        public bool IsHybrid => LlamaCpp.Llama_ModelIsHybrid(this);
+
+        /// <summary>
+        /// Returns true if the model is diffusion-based (like LLaDA, Dream, etc.)
+        /// </summary>
+        public bool IsDiffusion => LlamaCpp.Llama_ModelIsDiffusion(this);
+
+        /// <summary>
         /// Get a description of this model
         /// </summary>
         public string Description
@@ -162,21 +172,7 @@ namespace Llama.csharp.Native
         //    return new LoraAdapter(this, path, ptr);
         //}
         #endregion
-
-        #region tokenize
-        
-
-        #region context
-        /// <summary>
-        /// Create a new context for this model
-        /// </summary>
-        /// <param name="params"></param>
-        /// <returns></returns>
-        public SafeLLamaContextHandle CreateContext(LLamaContextParams @params)
-        {
-            return SafeLLamaContextHandle.Create(this, @params);
-        }
-        #endregion
+    
 
         #region metadata
         /// <summary>
@@ -248,12 +244,12 @@ namespace Llama.csharp.Native
                 var keyBytes = MetadataKeyByIndex(i);
                 if (keyBytes == null)
                     continue;
-                var key = Encoding.UTF8.GetStringFromSpan(keyBytes.Value.Span);
+                var key = Encoding.UTF8.GetString(keyBytes.Value.Span);
 
                 var valBytes = MetadataValueByIndex(i);
                 if (valBytes == null)
                     continue;
-                var val = Encoding.UTF8.GetStringFromSpan(valBytes.Value.Span);
+                var val = Encoding.UTF8.GetString(valBytes.Value.Span);
 
                 result[key] = val;
             }
@@ -288,7 +284,7 @@ namespace Llama.csharp.Native
                 var spanBytes = new Span<byte>(bytesPtr, int.MaxValue);
                 spanBytes = spanBytes.Slice(0, spanBytes.IndexOf((byte)0));
 
-                return Encoding.UTF8.GetStringFromSpan(spanBytes);
+                return Encoding.UTF8.GetString(spanBytes);
             }
         }
         #endregion
@@ -364,7 +360,6 @@ namespace Llama.csharp.Native
                     return tokens;
                 }
             }
-            #endregion
 
             /// <summary>
             /// Translate LLamaToken to String
@@ -394,7 +389,7 @@ namespace Llama.csharp.Native
                 }
 
                 var slice = buff.Slice(0, (int)tokenLength);
-                return Encoding.UTF8.GetStringFromSpan(slice);
+                return Encoding.UTF8.GetString(slice);
             }
 
             /// <summary>

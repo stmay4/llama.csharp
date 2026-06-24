@@ -1,6 +1,7 @@
 ﻿using Llama.csharp.Exceptions;
 using System.Diagnostics;
 using System.Text;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Llama.csharp.Native
 {
@@ -66,7 +67,9 @@ namespace Llama.csharp.Native
         #region construction/destruction
         static SafeLLamaContextHandle() { }
 
-        /// переопределенный метод класса SafeHandle из System.Runtime.InteropServices, который выполняется при Dispose
+        /// <summary>
+        /// Overridden method of the SafeHandle class from System.Runtime.InteropServices, executed during Dispose.
+        /// </summary>
         protected override bool ReleaseHandle()
         {
             LlamaCpp.Llama_ContextFree(handle);
@@ -237,7 +240,7 @@ namespace Llama.csharp.Native
         }
         #endregion
 
-        #region tokens
+        #region Tokenize
         /// <summary>
         /// Convert the given text into tokens
         /// </summary>
@@ -252,16 +255,6 @@ namespace Llama.csharp.Native
             return ThrowIfDisposed().Vocab.Tokenize(text, add_bos, special, encoding);
         }
 
-        /// <summary>
-        /// Convert a single llama token into bytes
-        /// </summary>
-        /// <param name="token">Token to decode</param>
-        /// <param name="dest">A span to attempt to write into. If this is too small nothing will be written</param>
-        /// <returns>The size of this token. **nothing will be written** if this is larger than `dest`</returns>
-        public uint TokenToSpan(LLamaToken token, Span<byte> dest)
-        {
-            return ThrowIfDisposed().Vocab.TokenToSpan(token, dest);
-        }
         #endregion
 
         #region infer
@@ -336,23 +329,24 @@ namespace Llama.csharp.Native
 
             var batchSize = checked((int)BatchSize);
 
-            // Evaluate the prompt, in chunks smaller than the max batch size
-            var n_left = tokens.Count;
             for (var i = 0; i < tokens.Count; i += batchSize)
             {
-                var n_eval = tokens.Count - i;
-                if (n_eval > batchSize)
-                    n_eval = batchSize;
+                // Calculate the size of the current chunk: either the full batchSize or the remaining amount.
+                var n_eval = Math.Min(batchSize, tokens.Count - i);
 
                 batch.Clear();
+
+                // Add the tokens of the current chunk.
                 for (var j = 0; j < n_eval; j++)
-                    batch.Add(tokens[i + j], n_past++, id, i + j == tokens.Count - 1); //logits = true, if it is last token in batch
+                {
+                    // logits=true flag only for the very last token of the ENTIRE list.
+                    bool isLastToken = (i + j) == tokens.Count - 1;
+                    batch.Add(tokens[i + j], n_past++, id, isLastToken);
+                }
 
                 var returnCode = Decode(batch);
                 if (returnCode != DecodeResult.Ok)
-                    return (returnCode, n_left);
-
-                n_left -= n_eval;
+                    return (returnCode, tokens.Count - i); // Return the number of unprocessed tokens if ERROR.
             }
 
             return (DecodeResult.Ok, 0);
@@ -394,6 +388,56 @@ namespace Llama.csharp.Native
         {
             LlamaCpp.Llama_PerfContextReset(this);
         }
+        #endregion
+
+        #region memory
+
+        // Clear the memory contents
+        // If data == true, the data buffers will also be cleared together with the metadata
+        internal void ClearMemory(bool data)
+        {
+            LlamaCpp.Llama_ContextMemoryClear(this, data);
+        }
+
+        // Removes all tokens that belong to the specified sequence and have positions in [p0, p1)
+        // Returns false if a partial sequence cannot be removed. Removing a whole sequence never fails
+        // seq_id < 0 : match any sequence
+        // p0 < 0     : [0,  p1]
+        // p1 < 0     : [p0, inf)
+        internal bool SeqMemoryRemove(LLamaSeqId seq, LLamaPos p0, LLamaPos p1)
+        {
+            LLamaPos minPos = LlamaCpp.Llama_ContextMemorySeqPosMin(this, seq);
+            LLamaPos maxPos = LlamaCpp.Llama_ContextMemorySeqPosMax(this, seq);
+
+            if (minPos == -1 || maxPos == -1) return false; //sequence is empty
+            if ((int)p1 > (int)maxPos) return false;
+
+            return LlamaCpp.Llama_ContextMemorySeqRemove(this, seq, p0, p1);
+        }
+
+        internal void SeqMemoryRemoveAll(LLamaSeqId seq)
+        {
+            LLamaPos minPos = LlamaCpp.Llama_ContextMemorySeqPosMin(this, seq);
+
+            if (minPos == -1) return; //sequence is empty
+
+            LlamaCpp.Llama_ContextMemorySeqRemove(this, seq, minPos, -1);
+        }
+
+        // Copy all tokens that belong to the specified sequence to another sequence
+        // p0 < 0 : [0,  p1]
+        // p1 < 0 : [p0, inf)
+        internal void SeqMemoryCopy(LLamaSeqId src, LLamaSeqId dest, LLamaPos p0, LLamaPos p1)
+        {
+            LlamaCpp.Llama_ContextMemorySeqCopy(this, src, dest, p0, p1);
+        }
+
+        // Removes all tokens that do not belong to the specified sequence
+        internal void SeqMemoryKeep(LLamaSeqId seq)
+        {
+            LlamaCpp.Llama_ContextMemorySeqKeep(this, seq);
+        }
+
         #endregion
 
     }

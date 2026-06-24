@@ -14,6 +14,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Элементы решения", "Элементы решения", "{754FC069-D67B-A9D7-50A1-8D1CA196D8F1}"
 	ProjectSection(SolutionItems) = preProject
 		LICENSE.txt = LICENSE.txt
+		llamacsharp_light.svg = llamacsharp_light.svg
 		doc\PublicDoc_EN.md = doc\PublicDoc_EN.md
 		doc\PublicDoc_RU.md = doc\PublicDoc_RU.md
 		README.md = README.md

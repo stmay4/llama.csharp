@@ -15,11 +15,11 @@ namespace Llama.csharp.IntegrationTest
 {
     public class TestOneSeqExecutor
     {
-        private static readonly string _baseDllPath = "./llama_b7552";
+        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b7667-bin-win-vulkan-x64"; // !set your path to the library!
         private static readonly string _baseModelDirPath = "./test_model";
-        private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf";
-        private static readonly string _heavyModelPath = @"D:\LLMmodels\Qwen3-4B-Thinking-2507-Claude-4.5-Opus-High-Reasoning-Distill.q8_0.gguf";
-        private static readonly string _cpuBackend = "ggml-cpu-alderlake.dll";
+        private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf"; // !set your model path!
+        private static readonly string _heavyModelPath = @"D:\LLMmodels\Qwen3-4B-Thinking-2507-Claude-4.5-Opus-High-Reasoning-Distill.q8_0.gguf"; // !set your model path!
+        private static readonly string _cpuBackend = "ggml-cpu-alderlake.dll"; // !set the best CPU backend for your PC here!
 
         private readonly ITestOutputHelper _output;
         public TestOneSeqExecutor(ITestOutputHelper output)
@@ -71,7 +71,7 @@ namespace Llama.csharp.IntegrationTest
 
             var watcher = Stopwatch.StartNew();
 
-            for (int k = 0; k < 50; k++) //конечно это надо префилить за раз, здесь только для теста
+            for (int k = 0; k < 50; k++) // Loop used only for perf test — I don't want to create a large prompt.
             {
                 await executor.ProcessPrompt(prompt, false, false);
 
@@ -97,6 +97,23 @@ namespace Llama.csharp.IntegrationTest
             executor.Dispose();
             model.Dispose();
         }
+
+
+
+        /// Только при использовании нескольких OneSeqExecutor одновременно
+        /// При использовании больших моделей (от 4 млрд) можно ставить использование максимального числа ядер, если поставим максимум то каждая по очереди сильно используют процессор, 
+        /// если половину, то обе одновременно наполовину, так что без разницы. Упор в обмене данных с памятью
+        /// 
+        /// Для малых моделей до 1 млрд параметров уменьшение количества используемых ядер улучшает скорость обработки
+        /// 
+        /// Only then using multiple OneSeqExecutors in parallel
+        /// For large models (4B+ parameters), you can set the maximum number of CPU cores.
+        /// If set to maximum, each core will be heavily used in turn.
+        /// If set to half, both cores will be used simultaneously at half capacity — so there is no significant difference.
+        /// The bottleneck is memory bandwidth.
+        ///
+        /// For small models (up to 1B parameters), reducing the number of used cores improves processing speed.
+
 
         [Fact]
         public async Task LlamaExecutor_Generate_TwoTask_1from4Threads()
@@ -130,7 +147,7 @@ namespace Llama.csharp.IntegrationTest
                 ContextSize = 2000,
                 SeqMax = 1,
                 NoPerf = true,
-                Threads = Math.Max(Environment.ProcessorCount / 4, 1) // четверть ядер
+                Threads = Math.Max(Environment.ProcessorCount / 4, 1) // 1/4
             };
 
             OneSeqLlamaExecutor executor1 = model.CreateOneSeqExecutor(ctxParams);
@@ -145,11 +162,10 @@ namespace Llama.csharp.IntegrationTest
             };
 
             var watcher = Stopwatch.StartNew();
-            // Создаем задачи для каждого потока генерации
+            // Create two task with different executors
             var task1 = RunGenerate_TwoTask(executor1, inferenceParams);
             var task2 = RunGenerate_TwoTask(executor2, inferenceParams);
 
-            // Ждем завершения обеих задач одновременно
             await Task.WhenAll(task1, task2);
 
             watcher.Stop();
@@ -207,11 +223,10 @@ namespace Llama.csharp.IntegrationTest
             };
 
             var watcher = Stopwatch.StartNew();
-            // Создаем задачи для каждого потока генерации
+            // Create two task with different executors
             var task1 = RunGenerate_TwoTask(executor1, inferenceParams);
             var task2 = RunGenerate_TwoTask(executor2, inferenceParams);
 
-            // Ждем завершения обеих задач одновременно
             await Task.WhenAll(task1, task2);
 
             watcher.Stop();
@@ -269,11 +284,10 @@ namespace Llama.csharp.IntegrationTest
             };
 
             var watcher = Stopwatch.StartNew();
-            // Создаем задачи для каждого потока генерации
+            // Create two task with different executors
             var task1 = RunGenerate_TwoTask(executor1, inferenceParams);
             var task2 = RunGenerate_TwoTask(executor2, inferenceParams);
 
-            // Ждем завершения обеих задач одновременно
             await Task.WhenAll(task1, task2);
 
             watcher.Stop();
@@ -331,11 +345,10 @@ namespace Llama.csharp.IntegrationTest
             };
 
             var watcher = Stopwatch.StartNew();
-            // Создаем задачи для каждого потока генерации
+            // Create two task with different executors
             var task1 = RunGenerate_TwoTask(executor1, inferenceParams);
             var task2 = RunGenerate_TwoTask(executor2, inferenceParams);
 
-            // Ждем завершения обеих задач одновременно
             await Task.WhenAll(task1, task2);
 
             watcher.Stop();
@@ -345,13 +358,6 @@ namespace Llama.csharp.IntegrationTest
             executor2.Dispose();
             model.Dispose();
         }
-
-        /// При использовании больших моделей (от 4 млрд) можно ставить использование максимального числа ядер, если поставим максимум то каждая по очереди сильно используют процессор, 
-        /// если половину, то одновременно наполовину, так что без разницы. Упор в обмене данных с памятью
-        /// 
-        /// Для малых моделей до 1 млрд параметров уменьшение количества используемых ядер улучшает скорость обработки
-
-
 
         private async Task RunGenerate_TwoTask(OneSeqLlamaExecutor executor, InferenceParams parameters)
         {

@@ -18,11 +18,11 @@ namespace Llama.csharp.IntegrationTest
 {
     public class TestLlamaExecutor
     {
-        private static readonly string _baseDllPath = "./llama_b7552";
-        private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf";
-        private static readonly string _heavyModelPath = @"D:\LLMmodels\Qwen3-4B-Thinking-2507-Claude-4.5-Opus-High-Reasoning-Distill.q8_0.gguf";
-        private static readonly string _moeModelPath = @"D:\LLMmodels\Qwen_Qwen3-30B-A3B-Q4_K_M.gguf";
-        private static readonly string _сpuBackend = "ggml-cpu-alderlake.dll";
+        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b7667-bin-win-vulkan-x64"; // !set your path to the library!
+        private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf"; // !set your model path!
+        private static readonly string _heavyModelPath = @"D:\LLMmodels\Qwen3-4B-Thinking-2507-Claude-4.5-Opus-High-Reasoning-Distill.q8_0.gguf"; // !set your model path!
+        private static readonly string _moeModelPath = @"D:\LLMmodels\Qwen_Qwen3-30B-A3B-Q4_K_M.gguf"; // !set your MOE model path!
+        private static readonly string _сpuBackend = "ggml-cpu-alderlake.dll"; // !set the best CPU backend for your PC here!
         private static readonly string _badCpuBackend = "ggml-cpu-x64.dll";
         private static readonly string _sseCpuBackend = "ggml-cpu-sse42.dll";
 
@@ -187,7 +187,7 @@ namespace Llama.csharp.IntegrationTest
 
             LLamaSeqId j = await executor.CreateSequence();
 
-            j.Should().Be((LLamaSeqId)(-1)); // нельзя создать больше одной
+            j.Should().Be((LLamaSeqId)(-1)); // cannot create more than one if SeqMax = 1 (default).
 
             executor.Dispose();
             model.Dispose();
@@ -278,7 +278,6 @@ namespace Llama.csharp.IntegrationTest
             var task1 = executor.CreateSequence();
             var task2 = executor.CreateSequence();
 
-            // Ждем завершения обеих задач одновременно
             var results = await Task.WhenAll(task1, task2);
 
             var id1 = results[0];
@@ -417,22 +416,13 @@ namespace Llama.csharp.IntegrationTest
                 var act = async () =>
                 {
                     Task prefill1 = executor.ProcessPrompt(main, "test prompt");
-                    Task prefill2 = executor.ProcessPrompt(main, "test prompt"); //должен вызвать ошибку, так как последовательность уже в префилле
+                    Task prefill2 = executor.ProcessPrompt(main, "test prompt"); //must throw, because sequence already in prefill State
 
                     await prefill1;
                     await prefill2;
                 };
 
                 await act.Should().ThrowAsync<Exception>().WithMessage("*sequence using in another place*");
-
-                //var act7 = async () =>
-                //{
-                //    Task t1 = executor.ProcessPrompt(main, "test prompt");
-                //    Task t2 = executor.ProcessPrompt(main, "test prompt"); //должен вызвать ошибку, так как последовательность уже в префилле, и не вызвать Race Condition
-                //    await Task.WhenAll(t1, t2);
-                //};
-
-                //await act7.Should().ThrowAsync<Exception>().WithMessage("*sequence using in another place*");
             }
             finally
             {
@@ -440,7 +430,7 @@ namespace Llama.csharp.IntegrationTest
                 model.Dispose();
             }
 
-            }
+        }
 
         [Fact]
         public async Task LlamaExecutor_ProcessPrompt_OneSeq_EmptyPrompt()
@@ -539,7 +529,7 @@ namespace Llama.csharp.IntegrationTest
 
             var watcher = Stopwatch.StartNew();
 
-            for (int k = 0; k < 50; k++) //конечно это надо префилить за раз, здесь только для теста
+            for (int k = 0; k < 50; k++) // Loop used only for perf test — I don't want to create a large prompt.
             {
                 await executor.ProcessPrompt(main, prompt, false, false);
 
@@ -551,7 +541,7 @@ namespace Llama.csharp.IntegrationTest
                 tokenCount.Should().Be(pos);
                 for (int i = 0; i < tokenCount; i++)
                 {
-                    tokens[i].Should().Be(decoded[i]);
+                    tokens[i].Should().Be(decoded[i]); // Compare tokens in the sequence with the tokens obtained from the prompt via executor.Context.Tokenize.
                 }
             }
 
@@ -612,7 +602,7 @@ namespace Llama.csharp.IntegrationTest
 
             var watcher = Stopwatch.StartNew();
 
-            for (int k = 0; k < 50; k++) //конечно это надо префилить за раз, здесь только для теста
+            for (int k = 0; k < 50; k++) // Loop used only for perf test — I don't want to create a large prompt.
             {
                 await executor.ProcessPrompt(main, prompt, false, false);
 
@@ -624,7 +614,7 @@ namespace Llama.csharp.IntegrationTest
                 tokenCount.Should().Be(pos);
                 for (int i = 0; i < tokenCount; i++)
                 {
-                    tokens[i].Should().Be(decoded[i]);
+                    tokens[i].Should().Be(decoded[i]); // Compare tokens in the sequence with the tokens obtained from the prompt via executor.Context.Tokenize.
                 }
             }
 
@@ -689,7 +679,7 @@ namespace Llama.csharp.IntegrationTest
 
             var watcher = Stopwatch.StartNew();
 
-            for (int k = 0; k < 10; k++) //конечно это надо префилить за раз, здесь только для теста
+            for (int k = 0; k < 10; k++) // Loop used only for perf test — I don't want to create a large prompt.
             {
                 Dictionary<LLamaSeqId, Task> prefills = await executor.ProcessPrompt([s1, s2, s3, s4, s5], [prompt, prompt, prompt, prompt, prompt], [false, false, false, false, false], [false, false, false, false, false]);
                 await Task.WhenAll(prefills.Values.ToArray());
@@ -766,14 +756,14 @@ namespace Llama.csharp.IntegrationTest
 
             var watcher = Stopwatch.StartNew();
 
-            for (int k = 0; k < 10; k++) //конечно это надо префилить за раз, здесь только для теста
+            for (int k = 0; k < 10; k++) // Loop used only for perf test — I don't want to create a large prompt.
             {
-                //может случиться рассинхрон в несколько токенов, но с определенного момента буду обрабатываться вместе
+                //TwoEnterPoint. Share batch may be not from the first token
                 Dictionary<LLamaSeqId, Task> prefills1 = await executor.ProcessPrompt([s1, s2], [prompt, prompt], [false, false], [false, false]);
                 Dictionary<LLamaSeqId, Task> prefills2 = await executor.ProcessPrompt([s3, s4, s5], [prompt, prompt, prompt], [false, false, false], [false, false, false]);
 
                 await Task.WhenAll(prefills1.Values.ToArray());
-                await Task.WhenAll(prefills2.Values.ToArray());//синхронизация
+                await Task.WhenAll(prefills2.Values.ToArray());
 
                 tokens.AddRange(executor.Context.Tokenize(prompt).ToList());
                 int tokenCount = tokens.Count;
@@ -982,7 +972,7 @@ namespace Llama.csharp.IntegrationTest
             LlamaCpp.Initialize(requiredFiles[0],
                                 requiredFiles[1],
                                 requiredFiles[2],
-                               [requiredFiles[3], //за загруженный считается первый CPU бэкенд
+                               [requiredFiles[3], // When loading two CPU backends, the first one is used.
                                 requiredFiles[4],
                                 requiredFiles[5]]);
             #endregion

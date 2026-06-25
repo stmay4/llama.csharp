@@ -9,17 +9,17 @@ namespace Llama.csharp.IntegrationTest
 {
 
     /// <summary>
-    /// CAUTION Every test should be called alone. CAUTION
+    /// CAUTION Every test in this file should be called alone. CAUTION
     /// </summary>
 
     [Trait("Category", "Integration")]
     [Trait("Category", "NativeLibraryLoad")]
     public class TestLoadLibrary
     {
-        private static readonly string _baseDllPath = "./llama_b7552";
+        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b7667-bin-win-vulkan-x64"; // !set your path to the library!
 
         /// <summary>
-        /// Проверка загрузки нативных библиотек с неверными путями к файлам
+        /// Load with invalid lib paths
         /// </summary>
         [Fact]
         public void LlamaCpp_Initialize_WithInvalidPath_Throws()
@@ -35,8 +35,8 @@ namespace Llama.csharp.IntegrationTest
         }
 
         /// <summary>
-        /// Проверка загрузки нативных библиотек и получения всех функций из библиотек
-        /// Загрузка с одним бэкендом - CPU
+        /// Load with valid lib paths
+        /// only CPU
         /// </summary>
         [Fact]
         public void LlamaCpp_Initialize_onlyCPU()
@@ -63,8 +63,8 @@ namespace Llama.csharp.IntegrationTest
         }
 
         /// <summary>
-        /// Проверка загрузки нативных библиотек и получения всех функций из библиотек
-        /// Загрузка с бэкендами - CPU и Vulkan
+        /// Load with valid lib paths
+        /// CPU + Vulkan
         /// </summary>
         [Fact]
         public void LlamaCpp_Initialize_CPU_Vulkan()

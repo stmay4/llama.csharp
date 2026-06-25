@@ -15,18 +15,15 @@ namespace Llama.csharp.IntegrationTest
     [Trait("Category", "LlamaWeightsAPI")]
     public class TestLlamaWeights
     {
-        private static readonly string _baseDllPath = "./llama_b7552";
+        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b7667-bin-win-vulkan-x64"; // !set your path to the library!
         private static readonly string _baseModelDirPath = "./test_model";
-        private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf";
+        private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf"; // !set your model path!
         private readonly ITestOutputHelper _output;
         public TestLlamaWeights(ITestOutputHelper output)
         {
             _output = output;
         }
 
-        /// <summary>
-        /// Проверка загрузки модели с неверно указанным путем к модели
-        /// </summary>
         [Fact]
         public void LlamaWeights_LoadFromFile_WithInvalidPath_Throws()
         {
@@ -55,14 +52,12 @@ namespace Llama.csharp.IntegrationTest
             var act = () =>
             {
                 LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
-                model.Dispose(); //на всякий случай
+                model.Dispose();
             };
 
             act.Should().Throw<FileNotFoundException>();
         }
-        /// <summary>
-        /// Проверка загрузки модели с неверным файлом модели
-        /// </summary>
+
         [Fact]
         public void LlamaWeights_LoadFromFile_WithInvalidModelFile_Throws()
         {
@@ -91,14 +86,12 @@ namespace Llama.csharp.IntegrationTest
             var act = () =>
             {
                 LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
-                model.Dispose(); //на всякий случай
+                model.Dispose();
             };
 
             act.Should().Throw<LoadWeightsFailedException>();
         }
-        /// <summary>
-        /// Проверка загрузки модели с верно указанным путем к модели
-        /// </summary>
+
         [Fact]
         public void LlamaWeights_LoadFromFile_WithValidPath()
         {
@@ -219,9 +212,6 @@ namespace Llama.csharp.IntegrationTest
             act.Should().Throw<LoadWeightsFailedException>();
         }
 
-        /// <summary>
-        /// Проверка верного создания исполнителя модели
-        /// </summary>
         [Fact]
         public void LlamaWeights_CreateExecutor_Valid()
         {
@@ -257,9 +247,6 @@ namespace Llama.csharp.IntegrationTest
             act.Should().NotThrow();
         }
 
-        /// <summary>
-        /// Проверка неверного создания исполнителя выгруженной модели
-        /// </summary>
         [Fact]
         public void LlamaWeights_CreateExecutor_Invalid()
         {
@@ -295,9 +282,6 @@ namespace Llama.csharp.IntegrationTest
             act.Should().Throw<ObjectDisposedException>();
         }
 
-        /// <summary>
-        /// Проверка верного создания исполнителя модели
-        /// </summary>
         [Fact]
         public void LlamaWeights_CreateOneSeqExecutor_Valid()
         {
@@ -333,9 +317,6 @@ namespace Llama.csharp.IntegrationTest
             act.Should().NotThrow();
         }
 
-        /// <summary>
-        /// Проверка неверного создания исполнителя выгруженной модели
-        /// </summary>
         [Fact]
         public void LlamaWeights_CreateOneSeqExecutor_Invalid()
         {

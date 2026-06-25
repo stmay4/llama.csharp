@@ -12,11 +12,8 @@ namespace Llama.csharp.IntegrationTest
 {
     public class TestContextParamsConstructor
     {
-        private static readonly string _baseDllPath = "./llama_b7552";
-        
-        /// <summary>
-        /// 
-        /// </summary>
+        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b7667-bin-win-vulkan-x64"; // !set your path to the library!
+
         [Fact]
         public void ContextParams_CheckDefault()
         {
@@ -47,9 +44,7 @@ namespace Llama.csharp.IntegrationTest
             parametres.BatchSize.Should().Be(512);
             parametres.UBatchSize.Should().Be(512);
         }
-        /// <summary>
-        /// 
-        /// </summary>
+
         [Fact]
         public void ContextParams_CheckInit()
         {

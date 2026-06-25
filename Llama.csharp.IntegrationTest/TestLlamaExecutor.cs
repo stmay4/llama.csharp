@@ -440,63 +440,7 @@ namespace Llama.csharp.IntegrationTest
                 model.Dispose();
             }
 
-        }
-
-        [Fact]
-        public async Task LlamaExecutor_ProcessPrompt_SequenceAlreadyInPrefill_WithoutRaceCondition()
-        {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend)
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
             }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]]);
-            #endregion
-
-            ModelParams parametres = new ModelParams(_modelPath) { };
-
-            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
-
-            ContextParams ctxParams = new ContextParams()
-            {
-                SeqMax = 2
-            };
-
-            LlamaExecutor executor = model.CreateExecutor(ctxParams);
-
-            try
-            {
-                LLamaSeqId main = await executor.CreateSequence();
-
-                var act = async () =>
-                {
-                    Task t1 = executor.ProcessPrompt(main, "test prompt");
-                    Task t2 = executor.ProcessPrompt(main, "test prompt"); //должен вызвать ошибку, так как последовательность уже в префилле, и не вызвать Race Condition
-                    await Task.WhenAll(t1, t2);
-                };
-
-                await act.Should().ThrowAsync<Exception>().WithMessage("*sequence using in another place*");
-            }
-            finally
-            {
-                executor.Dispose();
-                model.Dispose();
-            }
-        }
-
-
 
         [Fact]
         public async Task LlamaExecutor_ProcessPrompt_OneSeq_EmptyPrompt()

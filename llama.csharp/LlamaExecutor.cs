@@ -666,6 +666,7 @@ namespace Llama.csharp
         /// <summary>
         /// Deletes tokens from the end of a sequence starting from a given position (inclusive).
         /// The sequence must not be currently in use.
+        /// Can be used to clear the sequence when startpos is set to 0
         /// </summary>
         /// <param name="seqId">The identifier of the sequence to modify.</param>
         /// <param name="startPos">The position (inclusive) from which to delete tokens to the end.</param>

@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -1154,7 +1155,7 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3], requiredFiles[4]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(_moeModelPath) 
+            ModelParams parametres = new ModelParams(_moeModelPath)
             {
                 GpuLayerCount = 999,
             };
@@ -1408,7 +1409,7 @@ namespace Llama.csharp.IntegrationTest
                 "<assistant> <think>\r\nТекст носит официально-деловой характер. Ключевые элементы: дедлайн (下周五), требование предоставить финальную версию (提交最终版本), инструкция по техподдержке. " +
                 "Важно сохранить строгий, но вежливый тон. «务必» усиливает требование, переведу как «обязательно» или «просьба строго». «技术支持团队» — команда технической поддержки.\r\n</think>\r\nСрок сдачи проекта — следующая пятница. " +
                 "Просьба обязательно отправить финальную версию до этого времени. Если возникнут технические вопросы, обращайтесь в службу поддержки. </assistant>";
-            
+
             var watcher = Stopwatch.StartNew(); //начало замера всего
 
             await executor.ProcessPrompt(s1, prompt, executor.Context.Vocab.ShouldAddBOS);
@@ -1500,5 +1501,244 @@ namespace Llama.csharp.IntegrationTest
             return genText;
         }
 
+        [Fact]
+        public async Task LlamaExecutor_DeleteSequence_DuringPrefill()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+            LlamaExecutor executor = model.CreateExecutor(new ContextParams { SeqMax = 2 });
+
+            LLamaSeqId seq = await executor.CreateSequence();
+
+            // A long enough text so that the prefill does not finish instantly.
+            string bigText = string.Join(" ", Enumerable.Repeat("prompt is here", 200));
+
+            // Start the prefill and immediately delete the sequence.
+            Task prefillTask = executor.ProcessPrompt(seq, bigText);
+            await executor.DeleteSequence(seq);
+
+            // The prefill task should complete without exception.
+            await prefillTask;
+
+            // Verify that the sequence has indeed been deleted.
+            Func<Task> act = async () => await executor.DeleteSequence(seq);
+            await act.Should().ThrowAsync<IndexOutOfRangeException>().WithMessage("*not exist*");
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_DeleteSequence_DuringGeneration()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+            LlamaExecutor executor = model.CreateExecutor(new ContextParams { SeqMax = 2 });
+
+            LLamaSeqId seq = await executor.CreateSequence();
+
+            // Provide any non‑empty context so that generation makes sense.
+            await executor.ProcessPrompt(seq, "test");
+
+            InferenceParams infParams = new InferenceParams { MaxTokens = 50 };
+
+            // Start generation and immediately delete the sequence.
+            Channel<string> channel = await executor.Generate(seq, infParams);
+            await executor.DeleteSequence(seq);
+
+            // The channel should be closed; reading it should not hang the test.
+            await foreach (string token in channel.Reader.ReadAllAsync())
+                _output.WriteLine(token);
+
+            // Generation was stopped, so there are few or no tokens – that is expected.
+
+            // The sequence must be absent.
+            Func<Task> act = async () => await executor.DeleteSequence(seq);
+            await act.Should().ThrowAsync<IndexOutOfRangeException>().WithMessage("*not exist*");
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_StopPrefill_RevertsSequencePosition()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+            LlamaExecutor executor = model.CreateExecutor(new ContextParams { SeqMax = 2 });
+
+            LLamaSeqId seq = await executor.CreateSequence();
+
+            // First, fill the sequence with a short initial prompt
+            await executor.ProcessPrompt(seq, "initial prompt");
+            int posBefore = await executor.GetSequenceNextDecodedTokenPos(seq);
+
+            // Prepare a long text so the second prefill doesn't finish instantly
+            string bigText = string.Join(" ", Enumerable.Repeat("prompt is here", 200));
+
+            // Start the second prefill and immediately stop it
+            Task prefillTask = executor.ProcessPrompt(seq, bigText);
+            await executor.StopSeqPrefill(seq, posBefore);
+
+            // Wait for the prefill task – it should complete without exception
+            await prefillTask;
+
+            // The sequence position should be reverted to the saved position
+            int posAfter = await executor.GetSequenceNextDecodedTokenPos(seq);
+            posAfter.Should().Be(posBefore);
+
+            // Verify that the sequence is still usable: another prefill should advance the position
+            await executor.ProcessPrompt(seq, "another prompt");
+            int posFinal = await executor.GetSequenceNextDecodedTokenPos(seq);
+            posFinal.Should().BeGreaterThan(posBefore);
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_StopPrefill_RevertsToEmptyAndContinues()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+            LlamaExecutor executor = model.CreateExecutor(new ContextParams { SeqMax = 2 });
+
+            LLamaSeqId seq = await executor.CreateSequence();
+
+            // The sequence is empty at the start
+            int posEmpty = await executor.GetSequenceNextDecodedTokenPos(seq);
+            posEmpty.Should().Be(0);
+
+            // Start a long prefill that won't finish instantly
+            string bigText = string.Join(" ", Enumerable.Repeat("prompt is here", 200));
+            Task prefillTask = executor.ProcessPrompt(seq, bigText);
+
+            // Immediately stop the prefill, reverting to the beginning
+            await executor.StopSeqPrefill(seq, posEmpty);
+
+            // The prefill task should complete without exception
+            await prefillTask;
+
+            // Position should be back to 0
+            int posAfter = await executor.GetSequenceNextDecodedTokenPos(seq);
+            posAfter.Should().Be(0);
+
+            // The sequence should still be functional: run a new prefill and then generate
+            await executor.ProcessPrompt(seq, "Hello, how are you?");
+
+            int posAfterNewPrefill = await executor.GetSequenceNextDecodedTokenPos(seq);
+            posAfterNewPrefill.Should().BeGreaterThan(0);
+
+            // Attempt generation to confirm the sequence is healthy
+            InferenceParams infParams = new InferenceParams { MaxTokens = 10, AutoStopFromEOG = false, AntiPrompts = [] };
+            Channel<string> ch = await executor.Generate(seq, infParams);
+            var tokens = new List<string>();
+            await foreach (string token in ch.Reader.ReadAllAsync())
+                tokens.Add(token);
+
+            // Even a few tokens mean generation works
+            tokens.Should().NotBeNull();
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_Generate_EmptySequence_ThrowsInvalidOperation()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+            LlamaExecutor executor = model.CreateExecutor(new ContextParams { ContextSize = 1024 });
+            LLamaSeqId seq = await executor.CreateSequence();
+
+            // Make sure the sequence is empty
+            int pos = await executor.GetSequenceNextDecodedTokenPos(seq);
+            pos.Should().Be(0);
+
+            InferenceParams infParams = new InferenceParams { MaxTokens = 10 };
+
+            // Generating on an empty sequence should throw an exception
+            Func<Task> act = async () => await executor.Generate(seq, infParams);
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                             .WithMessage("*empty sequence*");
+
+            executor.Dispose();
+            model.Dispose();
+        }
     }
 }

@@ -317,6 +317,8 @@ namespace Llama.csharp
                     if (seq == null) throw new IndexOutOfRangeException($"There is not {seqId} sequence");
                     if (seq.InferState.State != SeqState.None) throw new Exception($"{seqId} sequence using in another place: {seq.InferState.State}");
                     if (seq.InferParams.MaxTokens == 0) throw new Exception($"For prefill use ProcessPrompt");
+                    if (seq.NextDecodedTokenPos == 0)
+                        throw new InvalidOperationException($"Cannot generate on an empty sequence (id={seqId}). Please prefill some text first.");
 
                     //sequence data generation init
                     seq.InferState = new InferStateArgs
@@ -516,8 +518,6 @@ namespace Llama.csharp
                 endInference(seq);
 
                 inferSeqs.Remove(seq); // Also remove from the current list used for batch assembly
-
-                endInference((seq,ch));
             }
             #endregion
 

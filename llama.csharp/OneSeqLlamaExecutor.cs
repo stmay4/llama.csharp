@@ -19,7 +19,7 @@ namespace Llama.csharp
 
         private readonly SemaphoreSlim _seqStateSemaphore = new SemaphoreSlim(1);
 
-        public OneSeqLlamaExecutor(LLamaContext context)
+        internal OneSeqLlamaExecutor(LLamaContext context)
         {
             Context = context;
             _mainSeq = new Sequence(context)

@@ -89,7 +89,7 @@ namespace Llama.csharp
                     return freeId;
                 }
 
-                if (_nextSequenceId >= Context.Params.SeqMax) 
+                if (_nextSequenceId >= Context.Params.SeqMax)
                     return (LLamaSeqId)(-1);
 
                 LLamaSeqId sequenceId = (LLamaSeqId)_nextSequenceId;
@@ -125,6 +125,16 @@ namespace Llama.csharp
                     Context.NativeHandle.SeqMemoryRemoveAll(id);
 
                     _sequences.Remove(id);
+
+                    if (_prefillSeqs.ContainsKey(seq))
+                    {
+                        endPrefill(seq); // завершаем, если в данный момент заполняется
+                    }
+                    else if (_inferenceSeqs.ContainsKey(seq))
+                    {
+                        endInference(seq); // завершаем, если в данный момент генерируется
+                    }
+
                     _freeIds.Push(id); // Return ID to the pool of free IDs
                 }
                 else throw new IndexOutOfRangeException($"sequence {id} not exist");
@@ -307,6 +317,8 @@ namespace Llama.csharp
                     if (seq == null) throw new IndexOutOfRangeException($"There is not {seqId} sequence");
                     if (seq.InferState.State != SeqState.None) throw new Exception($"{seqId} sequence using in another place: {seq.InferState.State}");
                     if (seq.InferParams.MaxTokens == 0) throw new Exception($"For prefill use ProcessPrompt");
+                    if (seq.NextDecodedTokenPos == 0)
+                        throw new InvalidOperationException($"Cannot generate on an empty sequence (id={seqId}). Please prefill some text first.");
 
                     //sequence data generation init
                     seq.InferState = new InferStateArgs
@@ -345,7 +357,7 @@ namespace Llama.csharp
         /// </summary>
         private async Task postProcessInfer()
         {
-            List<(Sequence, Channel<string>)> seqsToRemove = new List<(Sequence, Channel<string>)>();
+            List<Sequence> seqsToRemove = new List<Sequence>();
             foreach (var seq in _inferenceSeqs)
             {
                 if (seq.Key.InferState.TokenSampledAndDecoded) // Only for sequences processed in the current batch
@@ -390,11 +402,11 @@ namespace Llama.csharp
                         forRemoving = true;
                     }
 
-                    if (forRemoving) seqsToRemove.Add((seq.Key, seq.Value));
+                    if (forRemoving) seqsToRemove.Add(seq.Key);
                 }
             }
             // Remove the ones that have finished execution from the _inferenceSeqs container
-            foreach ((Sequence, Channel<string>) seq in seqsToRemove)
+            foreach (Sequence seq in seqsToRemove)
             {
                 endInference(seq);
             }
@@ -403,12 +415,13 @@ namespace Llama.csharp
         /// <summary>
         /// Releases the sequence from generation and closes its output channel.
         /// </summary>
-        /// <param name="inferenceSeq">The sequence and its associated channel to finalize.</param>
-        private void endInference((Sequence seq, Channel<string> ch) inferenceSeq)
+        /// <param name="inferenceSeq">sequence</param>
+        private void endInference(Sequence inferenceSeq)
         {
-            _inferenceSeqs.Remove(inferenceSeq.seq);
-            inferenceSeq.seq.InferState.State = SeqState.None;
-            inferenceSeq.ch.Writer.Complete();
+            _inferenceSeqs[inferenceSeq].Writer.Complete();
+            inferenceSeq.InferState.State = SeqState.None;
+
+            _inferenceSeqs.Remove(inferenceSeq);
         }
 
         /// <summary>
@@ -416,17 +429,17 @@ namespace Llama.csharp
         /// </summary>
         private void postProcessPrefill()
         {
-            List<(Sequence, TaskCompletionSource)> seqsToRemove = new List<(Sequence, TaskCompletionSource)>();
-            foreach (var seq in _prefillSeqs)
+            List<Sequence> seqsToRemove = new List<Sequence>();
+            foreach (var seq in _prefillSeqs.Keys)
             {
                 // If there are no more tokens to prefill
-                if (seq.Key.TokensToPrefill.Count == 0)
+                if (seq.TokensToPrefill.Count == 0)
                 {
-                    seqsToRemove.Add((seq.Key, seq.Value));
+                    seqsToRemove.Add(seq);
                 }
             }
             // Remove the ones that have finished execution from the container
-            foreach ((Sequence, TaskCompletionSource) seq in seqsToRemove)
+            foreach (Sequence seq in seqsToRemove)
             {
                 endPrefill(seq);
             }
@@ -435,12 +448,13 @@ namespace Llama.csharp
         /// <summary>
         /// Releases the sequence from prefill and signals completion.
         /// </summary>
-        /// <param name="prefillSeq">The sequence and its associated <see cref="TaskCompletionSource"/> to finalize.</param>
-        private void endPrefill((Sequence seq, TaskCompletionSource tcs) prefillSeq)
+        /// <param name="prefillSeq">sequence</param>
+        private void endPrefill(Sequence prefillSeq)
         {
-            _prefillSeqs.Remove(prefillSeq.seq);
-            prefillSeq.seq.InferState.State = SeqState.None;
-            prefillSeq.tcs.SetResult();
+            prefillSeq.InferState.State = SeqState.None;
+            _prefillSeqs[prefillSeq].SetResult();
+
+            _prefillSeqs.Remove(prefillSeq);
         }
 
         /// <summary>
@@ -497,15 +511,13 @@ namespace Llama.csharp
                     seq.TokensToPrefill.Add(llamaToken); // Add the newly sampled token to the container for model decoding
 
                     seq.RealTokensCount += seq.TokensToPrefill.Count(); // Add the sampled token to the real token count
-                }   
+                }
             }
             foreach (Sequence seq in seqsToRemove)
             {
-                Channel<string> ch = _inferenceSeqs[seq];
+                endInference(seq);
 
-                inferSeqs.Remove(seq); // Also remove from the current list used for batch assembly
-
-                endInference((seq,ch));
+                inferSeqs.Remove(seq); // Also remove from the current list used for batch assembly 
             }
             #endregion
 
@@ -654,6 +666,7 @@ namespace Llama.csharp
         /// <summary>
         /// Deletes tokens from the end of a sequence starting from a given position (inclusive).
         /// The sequence must not be currently in use.
+        /// Can be used to clear the sequence when startpos is set to 0
         /// </summary>
         /// <param name="seqId">The identifier of the sequence to modify.</param>
         /// <param name="startPos">The position (inclusive) from which to delete tokens to the end.</param>
@@ -707,11 +720,66 @@ namespace Llama.csharp
             {
                 if (_sequences.TryGetValue(id, out var seq))
                 {
-                    if (_inferenceSeqs.TryGetValue(seq, out var channel))
+                    if (_inferenceSeqs.ContainsKey(seq))
                     {
-                        endInference((seq, channel));
+                        endInference(seq);
                     }
                     else throw new IndexOutOfRangeException($"sequence {id} not in generate");
+                }
+                else throw new IndexOutOfRangeException($"sequence {id} not exist");
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Stops the ongoing prefill for the specified sequence and reverts its state
+        /// to the given position by removing all tokens that were added during this prefill.
+        /// If the sequence is not currently being prefilled, an exception is thrown.
+        /// </summary>
+        /// <param name="id">The identifier of the sequence whose prefill should be stopped.</param>
+        /// <param name="startPos">
+        /// The inclusive position within the sequence to which the state should be reverted.
+        /// All tokens from <paramref name="startPos"/> onward are removed.
+        /// Must be strictly less than the current <c>NextDecodedTokenPos</c> of the sequence.
+        /// </param>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="startPos"/> is greater than or equal to <c>NextDecodedTokenPos</c>.
+        /// </exception>
+        /// <exception cref="Exception">
+        /// The sequence is empty (typically indicates an internal inconsistency).
+        /// </exception>
+        /// <exception cref="IndexOutOfRangeException">
+        /// The sequence <paramref name="id"/> does not exist, or it is not in the prefill state.
+        /// </exception>
+        public async Task StopSeqPrefill(LLamaSeqId id, LLamaPos startPos /* inclusive */)
+        {
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                if (_sequences.TryGetValue(id, out var seq))
+                {
+                    if (_prefillSeqs.ContainsKey(seq))
+                    {
+                        endPrefill(seq);
+
+                        if (seq.DecodedTokens.Count > 0)
+                        {
+                            if ((int)startPos >= seq.NextDecodedTokenPos) throw new ArgumentException("Start position must be lower then NextDecodedTokenPos");
+
+                            if (Context.NativeHandle.SeqMemoryRemove(id, startPos, -1))
+                            {
+                                seq.SetNewEnd((int)startPos);
+                            }
+                            else
+                            {
+                                throw new Exception($"sequence is empty");
+                            }
+                        }
+                    }
+                    else throw new IndexOutOfRangeException($"sequence {id} not in prefill");
                 }
                 else throw new IndexOutOfRangeException($"sequence {id} not exist");
             }

@@ -125,6 +125,16 @@ namespace Llama.csharp
                     Context.NativeHandle.SeqMemoryRemoveAll(id);
 
                     _sequences.Remove(id);
+
+                    if (_prefillSeqs.ContainsKey(seq))
+                    {
+                        endPrefill(seq); // завершаем, если в данный момент заполняется
+                    }
+                    else if (_inferenceSeqs.ContainsKey(seq))
+                    {
+                        endInference(seq); // завершаем, если в данный момент генерируется
+                    }
+
                     _freeIds.Push(id); // Return ID to the pool of free IDs
                 }
                 else throw new IndexOutOfRangeException($"sequence {id} not exist");
@@ -345,7 +355,7 @@ namespace Llama.csharp
         /// </summary>
         private async Task postProcessInfer()
         {
-            List<(Sequence, Channel<string>)> seqsToRemove = new List<(Sequence, Channel<string>)>();
+            List<Sequence> seqsToRemove = new List<Sequence>();
             foreach (var seq in _inferenceSeqs)
             {
                 if (seq.Key.InferState.TokenSampledAndDecoded) // Only for sequences processed in the current batch
@@ -390,11 +400,11 @@ namespace Llama.csharp
                         forRemoving = true;
                     }
 
-                    if (forRemoving) seqsToRemove.Add((seq.Key, seq.Value));
+                    if (forRemoving) seqsToRemove.Add(seq.Key);
                 }
             }
             // Remove the ones that have finished execution from the _inferenceSeqs container
-            foreach ((Sequence, Channel<string>) seq in seqsToRemove)
+            foreach (Sequence seq in seqsToRemove)
             {
                 endInference(seq);
             }
@@ -403,12 +413,13 @@ namespace Llama.csharp
         /// <summary>
         /// Releases the sequence from generation and closes its output channel.
         /// </summary>
-        /// <param name="inferenceSeq">The sequence and its associated channel to finalize.</param>
-        private void endInference((Sequence seq, Channel<string> ch) inferenceSeq)
+        /// <param name="inferenceSeq">sequence</param>
+        private void endInference(Sequence inferenceSeq)
         {
-            _inferenceSeqs.Remove(inferenceSeq.seq);
-            inferenceSeq.seq.InferState.State = SeqState.None;
-            inferenceSeq.ch.Writer.Complete();
+            _inferenceSeqs[inferenceSeq].Writer.Complete();
+            inferenceSeq.InferState.State = SeqState.None;
+
+            _inferenceSeqs.Remove(inferenceSeq);
         }
 
         /// <summary>
@@ -416,17 +427,17 @@ namespace Llama.csharp
         /// </summary>
         private void postProcessPrefill()
         {
-            List<(Sequence, TaskCompletionSource)> seqsToRemove = new List<(Sequence, TaskCompletionSource)>();
-            foreach (var seq in _prefillSeqs)
+            List<Sequence> seqsToRemove = new List<Sequence>();
+            foreach (var seq in _prefillSeqs.Keys)
             {
                 // If there are no more tokens to prefill
-                if (seq.Key.TokensToPrefill.Count == 0)
+                if (seq.TokensToPrefill.Count == 0)
                 {
-                    seqsToRemove.Add((seq.Key, seq.Value));
+                    seqsToRemove.Add(seq);
                 }
             }
             // Remove the ones that have finished execution from the container
-            foreach ((Sequence, TaskCompletionSource) seq in seqsToRemove)
+            foreach (Sequence seq in seqsToRemove)
             {
                 endPrefill(seq);
             }
@@ -435,12 +446,13 @@ namespace Llama.csharp
         /// <summary>
         /// Releases the sequence from prefill and signals completion.
         /// </summary>
-        /// <param name="prefillSeq">The sequence and its associated <see cref="TaskCompletionSource"/> to finalize.</param>
-        private void endPrefill((Sequence seq, TaskCompletionSource tcs) prefillSeq)
+        /// <param name="prefillSeq">sequence</param>
+        private void endPrefill(Sequence prefillSeq)
         {
-            _prefillSeqs.Remove(prefillSeq.seq);
-            prefillSeq.seq.InferState.State = SeqState.None;
-            prefillSeq.tcs.SetResult();
+            prefillSeq.InferState.State = SeqState.None;
+            _prefillSeqs[prefillSeq].SetResult();
+
+            _prefillSeqs.Remove(prefillSeq);
         }
 
         /// <summary>
@@ -501,7 +513,7 @@ namespace Llama.csharp
             }
             foreach (Sequence seq in seqsToRemove)
             {
-                Channel<string> ch = _inferenceSeqs[seq];
+                endInference(seq);
 
                 inferSeqs.Remove(seq); // Also remove from the current list used for batch assembly
 
@@ -707,9 +719,9 @@ namespace Llama.csharp
             {
                 if (_sequences.TryGetValue(id, out var seq))
                 {
-                    if (_inferenceSeqs.TryGetValue(seq, out var channel))
+                    if (_inferenceSeqs.ContainsKey(seq))
                     {
-                        endInference((seq, channel));
+                        endInference(seq);
                     }
                     else throw new IndexOutOfRangeException($"sequence {id} not in generate");
                 }

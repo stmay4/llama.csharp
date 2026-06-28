@@ -89,7 +89,7 @@ namespace Llama.csharp
                     return freeId;
                 }
 
-                if (_nextSequenceId >= Context.Params.SeqMax) 
+                if (_nextSequenceId >= Context.Params.SeqMax)
                     return (LLamaSeqId)(-1);
 
                 LLamaSeqId sequenceId = (LLamaSeqId)_nextSequenceId;
@@ -511,13 +511,13 @@ namespace Llama.csharp
                     seq.TokensToPrefill.Add(llamaToken); // Add the newly sampled token to the container for model decoding
 
                     seq.RealTokensCount += seq.TokensToPrefill.Count(); // Add the sampled token to the real token count
-                }   
+                }
             }
             foreach (Sequence seq in seqsToRemove)
             {
                 endInference(seq);
 
-                inferSeqs.Remove(seq); // Also remove from the current list used for batch assembly
+                inferSeqs.Remove(seq); // Also remove from the current list used for batch assembly 
             }
             #endregion
 
@@ -725,6 +725,61 @@ namespace Llama.csharp
                         endInference(seq);
                     }
                     else throw new IndexOutOfRangeException($"sequence {id} not in generate");
+                }
+                else throw new IndexOutOfRangeException($"sequence {id} not exist");
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Stops the ongoing prefill for the specified sequence and reverts its state
+        /// to the given position by removing all tokens that were added during this prefill.
+        /// If the sequence is not currently being prefilled, an exception is thrown.
+        /// </summary>
+        /// <param name="id">The identifier of the sequence whose prefill should be stopped.</param>
+        /// <param name="startPos">
+        /// The inclusive position within the sequence to which the state should be reverted.
+        /// All tokens from <paramref name="startPos"/> onward are removed.
+        /// Must be strictly less than the current <c>NextDecodedTokenPos</c> of the sequence.
+        /// </param>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="startPos"/> is greater than or equal to <c>NextDecodedTokenPos</c>.
+        /// </exception>
+        /// <exception cref="Exception">
+        /// The sequence is empty (typically indicates an internal inconsistency).
+        /// </exception>
+        /// <exception cref="IndexOutOfRangeException">
+        /// The sequence <paramref name="id"/> does not exist, or it is not in the prefill state.
+        /// </exception>
+        public async Task StopSeqPrefill(LLamaSeqId id, LLamaPos startPos /* inclusive */)
+        {
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                if (_sequences.TryGetValue(id, out var seq))
+                {
+                    if (_prefillSeqs.ContainsKey(seq))
+                    {
+                        endPrefill(seq);
+
+                        if (seq.DecodedTokens.Count > 0)
+                        {
+                            if ((int)startPos >= seq.NextDecodedTokenPos) throw new ArgumentException("Start position must be lower then NextDecodedTokenPos");
+
+                            if (Context.NativeHandle.SeqMemoryRemove(id, startPos, -1))
+                            {
+                                seq.SetNewEnd((int)startPos);
+                            }
+                            else
+                            {
+                                throw new Exception($"sequence is empty");
+                            }
+                        }
+                    }
+                    else throw new IndexOutOfRangeException($"sequence {id} not in prefill");
                 }
                 else throw new IndexOutOfRangeException($"sequence {id} not exist");
             }

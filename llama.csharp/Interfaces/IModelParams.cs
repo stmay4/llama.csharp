@@ -77,22 +77,22 @@ namespace Llama.csharp.Interfaces
         bool CheckTensors { get; }
 
         /// <summary>
-        /// Validate model tensor data before loading
+        /// 
         /// </summary>
         bool UseExtraBufs { get; }
 
         /// <summary>
-        /// Validate model tensor data before loading
+        /// 
         /// </summary>
         bool NoHost { get; }
 
         /// <summary>
-        /// Validate model tensor data before loading
+        /// No allocate memory for weights (not work?)
         /// </summary>
         bool NoAlloc { get; }
 
         /// <summary>
-        /// Model path (model).
+        /// Path to gguf model
         /// </summary>
         string ModelPath { get; }
     }

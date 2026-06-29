@@ -17,5 +17,7 @@
         /// split layers and KV across GPUs, use tensor parallelism if supported
         /// </summary>
         Row = 2,
+
+        Tensor = 3,
     }
 }

@@ -80,6 +80,16 @@ namespace Llama.csharp.Native
         private sbyte _use_mmap;
 
         /// <summary>
+        /// use direct io, takes precedence over use_mmap when supported
+        /// </summary>
+        public bool use_direct_io
+        {
+            readonly get => Convert.ToBoolean(_use_direct_io);
+            set => _use_direct_io = Convert.ToSByte(value);
+        }
+        private sbyte _use_direct_io;
+
+        /// <summary>
         /// force system to keep model in RAM
         /// </summary>
         public bool use_mlock

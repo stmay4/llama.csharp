@@ -15,7 +15,7 @@ namespace Llama.csharp.IntegrationTest
     [Trait("Category", "LlamaWeightsAPI")]
     public class TestLlamaWeights
     {
-        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b7667-bin-win-vulkan-x64"; // !set your path to the library!
+        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b9756-bin-win-vulkan-x64"; // !set your path to the library!
         private static readonly string _baseModelDirPath = "./test_model";
         private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf"; // !set your model path!
         private readonly ITestOutputHelper _output;

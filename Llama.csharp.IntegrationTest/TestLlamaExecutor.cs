@@ -19,9 +19,9 @@ namespace Llama.csharp.IntegrationTest
 {
     public class TestLlamaExecutor
     {
-        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b7667-bin-win-vulkan-x64"; // !set your path to the library!
+        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b9756-bin-win-vulkan-x64"; // !set your path to the library!
         private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf"; // !set your model path!
-        private static readonly string _heavyModelPath = @"D:\LLMmodels\Qwen3-4B-Thinking-2507-Claude-4.5-Opus-High-Reasoning-Distill.q8_0.gguf"; // !set your model path!
+        private static readonly string _heavyModelPath = @"D:\LLMmodels\qwen35\Qwen3.5-9B-UD-Q5_K_XL.gguf"; // !set your model path!
         private static readonly string _moeModelPath = @"D:\LLMmodels\Qwen_Qwen3-30B-A3B-Q4_K_M.gguf"; // !set your MOE model path!
         private static readonly string _сpuBackend = "ggml-cpu-alderlake.dll"; // !set the best CPU backend for your PC here!
         private static readonly string _badCpuBackend = "ggml-cpu-x64.dll";
@@ -1052,9 +1052,7 @@ namespace Llama.csharp.IntegrationTest
             };
 
             foreach (var file in requiredFiles)
-            {
                 File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
 
             LlamaCpp.Initialize(requiredFiles[0],
                                 requiredFiles[1],
@@ -1063,14 +1061,9 @@ namespace Llama.csharp.IntegrationTest
             #endregion
 
             ModelParams parametres = new ModelParams(_heavyModelPath) { };
-
             LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
 
-            ContextParams ctxParams = new ContextParams()
-            {
-                ContextSize = 4000
-            };
-
+            ContextParams ctxParams = new ContextParams() { ContextSize = 4000 };
             LlamaExecutor executor = model.CreateExecutor(ctxParams);
             LLamaSeqId s1 = await executor.CreateSequence();
 
@@ -1082,50 +1075,54 @@ namespace Llama.csharp.IntegrationTest
                 AntiPrompts = [],
                 SamplingPipeline = new TunableSamplerPipeline(
                     new TunableSamplerPipelineSettings(
-                        [new TopKSampler()], new DistributionSampler()
-                        {
-                            Seed = 256
-                        }
-                        )
+                        [new TopKSampler()],
+                        new DistributionSampler() { Seed = 256 }
                     )
+                )
             };
 
             string prompt = "<system> You are a helpful assistant. </system> \n\n\n" +
-                "<user> count from 1 to 50 </user> \n\n\n" +
-                "<assistant> ";
+                            "<user> count from 1 to 50 </user> \n\n\n" +
+                            "<assistant> ";
             await executor.ProcessPrompt(s1, prompt, executor.Context.Vocab.ShouldAddBOS);
 
             LLamaPos startPos = await executor.GetSequenceNextDecodedTokenPos(s1);
 
-            var watcher = Stopwatch.StartNew();
-
+            // first generation
             Channel<string> ch1 = await executor.Generate(s1, inferenceParams);
-
             string genText = "";
             await foreach (var text in ch1.Reader.ReadAllAsync())
-            {
                 genText += text;
-            }
             _output.WriteLine(genText);
 
-            watcher.Stop();
-            _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
+            // Check model type
+            bool isRecurrentOrHybrid = model.NativeHandle.IsHybrid || model.NativeHandle.IsRecurrent;
 
-            await executor.DeleteSequenceEnd(s1, startPos);
-
-            watcher = Stopwatch.StartNew();
-
-            Channel<string> ch2 = await executor.Generate(s1, inferenceParams);
-
-            genText = "";
-            await foreach (var text in ch2.Reader.ReadAllAsync())
+            if (isRecurrentOrHybrid)
             {
-                genText += text;
-            }
-            _output.WriteLine(genText);
+                // DeleteSequenceEnd must throw exception
+                Func<Task> act = async () => await executor.DeleteSequenceEnd(s1, startPos);
+                await act.Should().ThrowAsync<Exception>()
+                         .WithMessage("*for recurrent and hybrid models, use state checkpoints(not yet implemented)*");
 
-            watcher.Stop();
-            _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
+                // Check seq life
+                int posAfter = await executor.GetSequenceNextDecodedTokenPos(s1);
+                posAfter.Should().BeGreaterThan(0);
+            }
+            else
+            {
+                // seq ending delete
+                await executor.DeleteSequenceEnd(s1, startPos);
+
+                var watcher = Stopwatch.StartNew();
+                Channel<string> ch2 = await executor.Generate(s1, inferenceParams); // generate numbers from 1 again
+                genText = "";
+                await foreach (var text in ch2.Reader.ReadAllAsync())
+                    genText += text;
+                _output.WriteLine(genText);
+                watcher.Stop();
+                _output.WriteLine(watcher.ElapsedMilliseconds + " watcher ms");
+            }
 
             executor.Dispose();
             model.Dispose();
@@ -1359,7 +1356,7 @@ namespace Llama.csharp.IntegrationTest
         }
 
         [Fact]
-        public async Task LMstudio_test()
+        public async Task Perf_vs_LMstudio_test()
         {
             #region init
             var requiredFiles = new[]
@@ -1621,21 +1618,47 @@ namespace Llama.csharp.IntegrationTest
             // Prepare a long text so the second prefill doesn't finish instantly
             string bigText = string.Join(" ", Enumerable.Repeat("prompt is here", 200));
 
-            // Start the second prefill and immediately stop it
+            bool isRecurrentOrHybrid = model.NativeHandle.IsHybrid || model.NativeHandle.IsRecurrent;
+
+            // Start the second prefill
             Task prefillTask = executor.ProcessPrompt(seq, bigText);
-            await executor.StopSeqPrefill(seq, posBefore);
 
-            // Wait for the prefill task – it should complete without exception
-            await prefillTask;
+            if (isRecurrentOrHybrid)
+            {
+                // For recurrent/hybrid models StopSeqPrefill must throw
+                Func<Task> act = async () => await executor.StopSeqPrefill(seq, posBefore);
+                await act.Should().ThrowAsync<Exception>()
+                         .WithMessage("*for recurrent and hybrid models, use state checkpoints(not yet implemented)*");
 
-            // The sequence position should be reverted to the saved position
-            int posAfter = await executor.GetSequenceNextDecodedTokenPos(seq);
-            posAfter.Should().Be(posBefore);
+                // Wait for the prefill task to complete (it should finish normally, but not be stopped)
+                await prefillTask;
 
-            // Verify that the sequence is still usable: another prefill should advance the position
-            await executor.ProcessPrompt(seq, "another prompt");
-            int posFinal = await executor.GetSequenceNextDecodedTokenPos(seq);
-            posFinal.Should().BeGreaterThan(posBefore);
+                // The sequence position should not have been reverted
+                int posAfter = await executor.GetSequenceNextDecodedTokenPos(seq);
+                posAfter.Should().BeGreaterThan(posBefore); // prefill actually happened
+
+                // The sequence is still usable
+                await executor.ProcessPrompt(seq, "another prompt");
+                int posFinal = await executor.GetSequenceNextDecodedTokenPos(seq);
+                posFinal.Should().BeGreaterThan(posAfter);
+            }
+            else
+            {
+                // For transformer models – stop the prefill and revert
+                await executor.StopSeqPrefill(seq, posBefore);
+
+                // Wait for the prefill task – it should complete without exception
+                await prefillTask;
+
+                // The sequence position should be reverted to the saved position
+                int posAfter = await executor.GetSequenceNextDecodedTokenPos(seq);
+                posAfter.Should().Be(posBefore);
+
+                // Verify that the sequence is still usable: another prefill should advance the position
+                await executor.ProcessPrompt(seq, "another prompt");
+                int posFinal = await executor.GetSequenceNextDecodedTokenPos(seq);
+                posFinal.Should().BeGreaterThan(posBefore);
+            }
 
             executor.Dispose();
             model.Dispose();

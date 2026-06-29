@@ -21,10 +21,12 @@ namespace Llama.csharp.Extensions
         /// <exception cref="ArgumentException"></exception>
         public static IDisposable ToLlamaModelParams(this IModelParams @params, out LLamaModelParams result)
         {
-            if (@params.UseMemoryLock && !LlamaCpp.Llama_SupportsMlock())
-                throw new NotSupportedException("'UseMemoryLock' is not supported (llama_supports_mlock() == false)");
-            if (@params.UseMemorymap && !LlamaCpp.Llama_SupportsMmap())
-                throw new NotSupportedException("'UseMemorymap' is not supported (llama_supports_mmap() == false)");
+            if (@params.UseMemoryLock.HasValue)
+                if (@params.UseMemoryLock.Value && !LlamaCpp.Llama_SupportsMlock())
+                    throw new NotSupportedException("'UseMemoryLock' is not supported (llama_supports_mlock() == false)");
+            if (@params.UseMemorymap.HasValue)
+                if (@params.UseMemorymap.Value && !LlamaCpp.Llama_SupportsMmap())
+                    throw new NotSupportedException("'UseMemorymap' is not supported (llama_supports_mmap() == false)");
 
             var disposer = new GroupDisposable();
 
@@ -35,10 +37,16 @@ namespace Llama.csharp.Extensions
             if (@params.SplitMode.HasValue)
                 result.split_mode = @params.SplitMode.Value;
 
-            result.use_mlock = @params.UseMemoryLock;
-            result.use_mmap = @params.UseMemorymap;
-            result.vocab_only = @params.VocabOnly;
-            result.check_tensors = @params.CheckTensors;
+            if (@params.UseMemoryLock.HasValue)
+                result.use_mlock = @params.UseMemoryLock.Value;
+            if (@params.UseMemorymap.HasValue)
+                result.use_mmap = @params.UseMemorymap.Value;
+            if (@params.UseDirectIO.HasValue)
+                result.use_direct_io = @params.UseDirectIO.Value;
+            if (@params.VocabOnly.HasValue)
+                result.vocab_only = @params.VocabOnly.Value;
+            if (@params.CheckTensors.HasValue)
+                result.check_tensors = @params.CheckTensors.Value;
 
             unsafe
             {
@@ -56,8 +64,10 @@ namespace Llama.csharp.Extensions
                 result.kv_overrides = (LLamaModelMetadataOverride*)nint.Zero;
             }
 
-            result.no_host = @params.NoHost;
-            result.no_alloc = @params.NoAlloc;
+            if (@params.NoHost.HasValue)
+                result.no_host = @params.NoHost.Value;
+            if (@params.NoAlloc.HasValue)
+                result.no_alloc = @params.NoAlloc.Value;
 
 
             return disposer;

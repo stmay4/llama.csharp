@@ -59,37 +59,42 @@ namespace Llama.csharp.Interfaces
         /// <summary>
         /// Load vocab only (no weights)
         /// </summary>
-        bool VocabOnly { get; }
+        bool? VocabOnly { get; }
 
         /// <summary>
         /// Use mmap for faster loads (use_mmap)
         /// </summary>
-        bool UseMemorymap { get; }
+        bool? UseMemorymap { get; }
+
+        /// <summary>
+        /// Use direct io, takes precedence over use_mmap when supported
+        /// </summary>
+        bool? UseDirectIO { get; }
 
         /// <summary>
         /// Use mlock to keep model in memory (use_mlock)
         /// </summary>
-        bool UseMemoryLock { get; }
+        bool? UseMemoryLock { get; }
 
         /// <summary>
         /// Validate model tensor data before loading
         /// </summary>
-        bool CheckTensors { get; }
+        bool? CheckTensors { get; }
 
         /// <summary>
         /// 
         /// </summary>
-        bool UseExtraBufs { get; }
+        bool? UseExtraBufs { get; }
 
         /// <summary>
         /// 
         /// </summary>
-        bool NoHost { get; }
+        bool? NoHost { get; }
 
         /// <summary>
         /// No allocate memory for weights (not work?)
         /// </summary>
-        bool NoAlloc { get; }
+        bool? NoAlloc { get; }
 
         /// <summary>
         /// Path to gguf model

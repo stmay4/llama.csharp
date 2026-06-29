@@ -7,7 +7,7 @@ namespace Llama.csharp.IntegrationTest
 {
     public class TestModelParamsConstructor
     {
-        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b7667-bin-win-vulkan-x64"; // !set your path to the library!
+        private static readonly string _baseDllPath = @"D:\DownLoads\llama-b9756-bin-win-vulkan-x64"; // !set your path to the library!
 
         /// <summary>
         /// 

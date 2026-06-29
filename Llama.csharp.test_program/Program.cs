@@ -10,8 +10,8 @@ using System.Threading.Channels;
 
 class Program
 {
-    private static readonly string _baseDllPath = @"D:\DownLoads\llama-b7667-bin-win-vulkan-x64"; // set the path to the file folder
-    private static readonly string _modelPath = @"D:\LLMmodels\Qwen3-4B-Thinking-2507-Claude-4.5-Opus-High-Reasoning-Distill.q8_0.gguf";
+    private static readonly string _baseDllPath = @"D:\DownLoads\llama-b9756-bin-win-vulkan-x64"; // set the path to the file folder
+    private static readonly string _modelPath = @"D:\LLMmodels\qwen35\Qwen3.5-9B-UD-Q5_K_XL.gguf";
     private static readonly string _сpuBackend = @"ggml-cpu-alderlake.dll"; // set a hardware-supported backend. more inf in docs
     static async Task Main()
     {

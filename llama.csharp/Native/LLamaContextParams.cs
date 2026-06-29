@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
 
 namespace Llama.csharp.Native
 {
@@ -41,6 +42,16 @@ namespace Llama.csharp.Native
         public uint n_seq_max;
 
         /// <summary>
+        /// number of recurrent-state snapshots per seq for rollback (0 = no rollback) [EXPERIMENTAL]
+        /// </summary>
+        public int n_rs_seq;
+
+        /// <summary>
+        /// max outputs in a ubatch (0 = n_batch)
+        /// </summary>
+        public int n_outputs_max;
+
+        /// <summary>
         /// number of threads to use for generation
         /// </summary>
         public int n_threads;
@@ -49,6 +60,11 @@ namespace Llama.csharp.Native
         /// number of threads to use for batch processing
         /// </summary>
         public int n_threads_batch;
+
+        /// <summary>
+        /// set the context type (e.g. MTP)
+        /// </summary>
+        public LlamaContextType ctx_type;          
 
         /// <summary>
         /// RoPE scaling type, from `enum llama_rope_scaling_type` 

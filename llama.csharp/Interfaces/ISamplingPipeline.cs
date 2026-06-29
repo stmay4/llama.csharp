@@ -12,7 +12,7 @@ namespace Llama.csharp.Interfaces
         /// Sample a single token from the given context at the given position
         /// </summary>
         /// <param name="ctx">The context being sampled from</param>
-        /// <param name="index">Position to sample logits from</param>
+        /// <param name="index">Position of logits in last batch </param>
         /// <returns></returns>
         LLamaToken Sample(SafeLLamaContextHandle ctx, int index);
 

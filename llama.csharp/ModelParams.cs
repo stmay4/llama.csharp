@@ -16,19 +16,21 @@ namespace Llama.csharp
 
         public TensorSplitsCollection TensorSplits { get; set; } = new();
 
-        public bool VocabOnly { get; set; }
+        public bool? VocabOnly { get; set; }
 
-        public bool UseMemorymap { get; set; } = true;
+        public bool? UseMemorymap { get; set; }
 
-        public bool UseMemoryLock { get; set; }
+        public bool? UseDirectIO { get; set; }
 
-        public bool CheckTensors { get; set; }
+        public bool? UseMemoryLock { get; set; }
 
-        public bool UseExtraBufs { get; set; }
+        public bool? CheckTensors { get; set; }
 
-        public bool NoHost { get; set; }
+        public bool? UseExtraBufs { get; set; }
 
-        public bool NoAlloc { get; set; }
+        public bool? NoHost { get; set; }
+
+        public bool? NoAlloc { get; set; }
 
         public string ModelPath { get; set; }
 

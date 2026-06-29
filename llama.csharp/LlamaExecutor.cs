@@ -667,6 +667,8 @@ namespace Llama.csharp
         /// Deletes tokens from the end of a sequence starting from a given position (inclusive).
         /// The sequence must not be currently in use.
         /// Can be used to clear the sequence when startpos is set to 0
+        /// <br></br>
+        /// <b>DONT WORK FOR HYBRID or RECCURENT MODELS, use checkpoints instead</b>
         /// </summary>
         /// <param name="seqId">The identifier of the sequence to modify.</param>
         /// <param name="startPos">The position (inclusive) from which to delete tokens to the end.</param>
@@ -676,6 +678,8 @@ namespace Llama.csharp
         /// <exception cref="IndexOutOfRangeException"></exception>
         public async Task DeleteSequenceEnd(LLamaSeqId seqId, LLamaPos startPos /* inclusive */)
         {
+            ThrowIfStateWorkNotSupported();
+
             await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
             try
             {
@@ -737,7 +741,8 @@ namespace Llama.csharp
         /// <summary>
         /// Stops the ongoing prefill for the specified sequence and reverts its state
         /// to the given position by removing all tokens that were added during this prefill.
-        /// If the sequence is not currently being prefilled, an exception is thrown.
+        /// If the sequence is not currently being prefilled, an exception is thrown. <br></br>
+        /// <b>DONT WORK FOR HYBRID or RECCURENT MODELS, use checkpoints instead</b>
         /// </summary>
         /// <param name="id">The identifier of the sequence whose prefill should be stopped.</param>
         /// <param name="startPos">
@@ -756,6 +761,8 @@ namespace Llama.csharp
         /// </exception>
         public async Task StopSeqPrefill(LLamaSeqId id, LLamaPos startPos /* inclusive */)
         {
+            ThrowIfStateWorkNotSupported();
+
             await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
             try
             {
@@ -787,6 +794,12 @@ namespace Llama.csharp
             {
                 _seqStateSemaphore.Release();
             }
+        }
+
+        private void ThrowIfStateWorkNotSupported()
+        {
+            if (Context.NativeHandle.ModelHandle.IsHybrid || Context.NativeHandle.ModelHandle.IsRecurrent)
+                throw new Exception("for recurrent and hybrid models, use state checkpoints(not yet implemented)");
         }
 
         /// <summary>

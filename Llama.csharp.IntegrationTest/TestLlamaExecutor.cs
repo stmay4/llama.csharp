@@ -21,7 +21,7 @@ namespace Llama.csharp.IntegrationTest
     {
         private static readonly string _baseDllPath = @"D:\DownLoads\llama-b9756-bin-win-vulkan-x64"; // !set your path to the library!
         private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf"; // !set your model path!
-        private static readonly string _heavyModelPath = @"D:\LLMmodels\qwen35\Qwen3.5-9B-UD-Q5_K_XL.gguf"; // !set your model path!
+        private static readonly string _hybridModelPath = @"D:\LLMmodels\qwen35\Qwen3.5-9B-UD-Q5_K_XL.gguf"; // !set your model path!
         private static readonly string _moeModelPath = @"D:\LLMmodels\Qwen_Qwen3-30B-A3B-Q4_K_M.gguf"; // !set your MOE model path!
         private static readonly string _сpuBackend = "ggml-cpu-alderlake.dll"; // !set the best CPU backend for your PC here!
         private static readonly string _badCpuBackend = "ggml-cpu-x64.dll";
@@ -812,7 +812,7 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(_heavyModelPath) { };
+            ModelParams parametres = new ModelParams(_hybridModelPath) { };
 
             LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
 
@@ -890,7 +890,7 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(_heavyModelPath) { };
+            ModelParams parametres = new ModelParams(_hybridModelPath) { };
 
             LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
 
@@ -978,7 +978,7 @@ namespace Llama.csharp.IntegrationTest
                                 requiredFiles[5]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(_heavyModelPath) { };
+            ModelParams parametres = new ModelParams(_hybridModelPath) { };
 
             LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
 
@@ -1040,6 +1040,99 @@ namespace Llama.csharp.IntegrationTest
         }
 
         [Fact]
+        public async Task LlamaExecutor_CopySeqPrefixTo_PartialCopy_ThrowsForRecurrentOrHybrid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_hybridModelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+
+            ContextParams ctxParams = new ContextParams()
+            {
+                ContextSize = 4000,
+                SeqMax = 3
+            };
+            LlamaExecutor executor = model.CreateExecutor(ctxParams);
+
+            LLamaSeqId seq1 = await executor.CreateSequence();
+            LLamaSeqId seq2 = await executor.CreateSequence();
+            LLamaSeqId seq3 = await executor.CreateSequence();
+
+            // First prefill – a request to count from 1 to 100
+            string prompt = "<system> You are a helpful assistant. </system>\n\n\n" +
+                            "<user> count from 1 to 100 </user>\n\n\n" +
+                            "<assistant> 1, 2, 3";
+            await executor.ProcessPrompt(seq1, prompt, executor.Context.Vocab.ShouldAddBOS);
+
+            LLamaPos posBefore = await executor.GetSequenceNextDecodedTokenPos(seq1);
+            ((int)posBefore).Should().BeGreaterThan(0);
+
+            //Second prefill – additional tokens beyond the first part
+            string continuation = ", 4, 5, 6, 7, 8, 9, 10";
+            await executor.ProcessPrompt(seq1, continuation);
+
+            LLamaPos posAfter = await executor.GetSequenceNextDecodedTokenPos(seq1);
+            ((int)posAfter).Should().BeGreaterThan(((int)posBefore));
+
+            InferenceParams infParams = new InferenceParams
+            {
+                MaxTokens = 5,
+                AutoStopFromEOG = false,
+                DecodeSpecialTokens = true,
+                AntiPrompts = []
+            };
+
+            // Check model type
+            bool isRecurrentOrHybrid = model.NativeHandle.IsHybrid || model.NativeHandle.IsRecurrent;
+
+            if (isRecurrentOrHybrid)
+            {
+                var act = async () =>
+                {
+                    // Attempt partial copy – should throw for recurrent/hybrid models
+                    await executor.CopySeqPrefixTo(seq1, [seq2], posBefore);
+
+                    
+                    Channel<string> ch = await executor.Generate(seq2, infParams);
+                    string genText = "";
+                    await foreach (string token in ch.Reader.ReadAllAsync())
+                        genText += token;
+                    _output.WriteLine(genText); // generation started
+
+                };
+
+                await act.Should().ThrowAsync<Exception>().WithMessage("*use state checkpoints*");
+            }
+
+            // Full copy (endPos == NextDecodedTokenPos) should work fine
+            await executor.CopySeqPrefixTo(seq1, [seq3], posAfter);
+
+            // Verify that seq3 has the full context and can generate
+
+            Channel<string> ch2 = await executor.Generate(seq3, infParams);
+            string genText = "";
+            await foreach (string token in ch2.Reader.ReadAllAsync())
+                genText += token;
+            _output.WriteLine(genText); // generation started
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
         public async Task LlamaExecutor_Generate_DeleteEnd_Generate()
         {
             #region init
@@ -1060,7 +1153,7 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(_heavyModelPath) { };
+            ModelParams parametres = new ModelParams(_hybridModelPath) { };
             LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
 
             ContextParams ctxParams = new ContextParams() { ContextSize = 4000 };
@@ -1378,7 +1471,7 @@ namespace Llama.csharp.IntegrationTest
                                [requiredFiles[3]]);
             #endregion
 
-            ModelParams parametres = new ModelParams(_heavyModelPath) { };
+            ModelParams parametres = new ModelParams(_hybridModelPath) { };
 
             LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
 

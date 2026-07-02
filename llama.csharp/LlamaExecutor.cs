@@ -635,6 +635,11 @@ namespace Llama.csharp
                         }
                     }
 
+                    if ((int)endPos != srcSeq.NextDecodedTokenPos)
+                    {
+                        ThrowIfStateWorkNotSupported();
+                    }
+
                     if ((int)endPos < 1) throw new ArgumentException("End position must be 1 or greater");
 
                     if ((int)endPos > srcSeq.NextDecodedTokenPos) throw new ArgumentException("End position must be lower or equal NextDecodedTokenPos");

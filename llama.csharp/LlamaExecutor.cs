@@ -708,6 +708,35 @@ namespace Llama.csharp
         }
 
         /// <summary>
+        /// Clears the KV-cache and state of the specified context sequence.
+        /// Works for all model types. If the sequence is currently being used
+        /// for generation or prefill, those operations are aborted.
+        /// </summary>
+        /// <param name="id">The identifier of the sequence to clear.</param>
+        /// <exception cref="IndexOutOfRangeException">
+        /// Thrown if the sequence with the given <paramref name="id"/> does not exist.
+        /// </exception>
+        public async Task ClearSequence(LLamaSeqId id)
+        {
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                if (_sequences.TryGetValue(id, out var seq))
+                {
+                    clearSequence(seq);
+                }
+                else
+                {
+                    throw new IndexOutOfRangeException($"sequence {id} not exist");
+                }
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
+        }
+
+        /// <summary>
         /// Stop sequence tasks and clear state.
         /// <b>Must be called only under lock.</b>
         /// </summary>

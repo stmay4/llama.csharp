@@ -1111,6 +1111,8 @@ namespace Llama.csharp.IntegrationTest
                     string genText = "";
                     await foreach (string token in ch.Reader.ReadAllAsync())
                         genText += token;
+
+                    _output.WriteLine("partial copy: ");
                     _output.WriteLine(genText); // generation started
 
                 };
@@ -1128,6 +1130,8 @@ namespace Llama.csharp.IntegrationTest
             string genText = "";
             await foreach (string token in ch2.Reader.ReadAllAsync())
                 genText += token;
+
+            _output.WriteLine("full copy: ");
             _output.WriteLine(genText); // generation started
 
             executor.Dispose();
@@ -1135,7 +1139,7 @@ namespace Llama.csharp.IntegrationTest
         }
 
         [Fact]
-        public async Task LlamaExecutor_CopySeqPrefixTo_PartialCopy_Hybrid_ThrowsForRecurrentOrHybrid()
+        public async Task LlamaExecutor_CopySeqPrefixTo_PartialCopy_Hybrid()
         {
             #region init
             var requiredFiles = new[]
@@ -1205,6 +1209,7 @@ namespace Llama.csharp.IntegrationTest
                     string genText = "";
                     await foreach (string token in ch.Reader.ReadAllAsync())
                         genText += token;
+                    _output.WriteLine("partial copy: ");
                     _output.WriteLine(genText); // generation started
 
                 };
@@ -1222,6 +1227,7 @@ namespace Llama.csharp.IntegrationTest
             string genText = "";
             await foreach (string token in ch2.Reader.ReadAllAsync())
                 genText += token;
+            _output.WriteLine("full copy: ");
             _output.WriteLine(genText); // generation started
 
             executor.Dispose();
@@ -2034,6 +2040,10 @@ namespace Llama.csharp.IntegrationTest
             out1.Should().NotBeNullOrEmpty();
             out2.Should().NotBeNullOrEmpty();
             out1.Should().BeEquivalentTo(out2);
+
+            IReadOnlyList<LLamaToken> seq1tkns = await executor.GetSequenceDecodedTokens(seq1);
+            IReadOnlyList<LLamaToken> seq2tkns = await executor.GetSequenceDecodedTokens(seq2);
+            seq1tkns.Should().BeEqualTo(seq2tkns); //check state identity
 
             executor.Dispose();
             model.Dispose();

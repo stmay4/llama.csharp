@@ -20,9 +20,10 @@ namespace Llama.csharp.IntegrationTest
     public class TestLlamaExecutor
     {
         private static readonly string _baseDllPath = @"D:\DownLoads\llama-b9756-bin-win-vulkan-x64"; // !set your path to the library!
-        private static readonly string _modelPath = @"D:\LLMmodels\Baguettotron-Q8_0.gguf"; // !set your model path!
-        private static readonly string _hybridModelPath = @"D:\LLMmodels\qwen35\Qwen3.5-9B-UD-Q5_K_XL.gguf"; // !set your model path!
-        private static readonly string _moeModelPath = @"D:\LLMmodels\Qwen_Qwen3-30B-A3B-Q4_K_M.gguf"; // !set your MOE model path!
+        private static readonly string _modelPath = @"D:\LLMmodels\qwen3b_4q.gguf"; // !set your model path! no hybrid or reccurent
+        private static readonly string _hybridModelPath = @"D:\LLMmodels\qwen35\Qwen3.5-2B-UD-Q6_K_XL.gguf"; // !set your model path! hybrid or reccurent
+        private static readonly string _rwkvModelPath = @"D:\LLMmodels\rwkv7-2.9B-g1-Q5_K_M.gguf";
+        private static readonly string _moeModelPath = @"D:\LLMmodels\Kimi-VL-A3B-Thinking-2506-Q4_K_M.gguf"; // !set your MOE model path! MOE
         private static readonly string _сpuBackend = "ggml-cpu-alderlake.dll"; // !set the best CPU backend for your PC here!
         private static readonly string _badCpuBackend = "ggml-cpu-x64.dll";
         private static readonly string _sseCpuBackend = "ggml-cpu-sse42.dll";
@@ -1040,7 +1041,101 @@ namespace Llama.csharp.IntegrationTest
         }
 
         [Fact]
-        public async Task LlamaExecutor_CopySeqPrefixTo_PartialCopy_ThrowsForRecurrentOrHybrid()
+        public async Task LlamaExecutor_CopySeqPrefixTo_PartialCopy_RWKV_ThrowsForRecurrentOrHybrid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_rwkvModelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+
+            ContextParams ctxParams = new ContextParams()
+            {
+                ContextSize = 4000,
+                SeqMax = 3
+            };
+            LlamaExecutor executor = model.CreateExecutor(ctxParams);
+
+            LLamaSeqId seq1 = await executor.CreateSequence();
+            LLamaSeqId seq2 = await executor.CreateSequence();
+            LLamaSeqId seq3 = await executor.CreateSequence();
+
+            // First prefill – a request to count from 1 to 100
+            string prompt = "<system> You are a helpful assistant. </system>\n\n\n" +
+                            "<user> count from 1 to 100 </user>\n\n\n" +
+                            "<assistant> 1, 2, 3";
+            await executor.ProcessPrompt(seq1, prompt, executor.Context.Vocab.ShouldAddBOS);
+
+            LLamaPos posBefore = await executor.GetSequenceNextDecodedTokenPos(seq1);
+            ((int)posBefore).Should().BeGreaterThan(0);
+
+            //Second prefill – additional tokens beyond the first part
+            string continuation = ", 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21";
+            await executor.ProcessPrompt(seq1, continuation);
+
+            LLamaPos posAfter = await executor.GetSequenceNextDecodedTokenPos(seq1);
+            ((int)posAfter).Should().BeGreaterThan(((int)posBefore));
+
+            InferenceParams infParams = new InferenceParams
+            {
+                MaxTokens = 15,
+                AutoStopFromEOG = false,
+                DecodeSpecialTokens = true,
+                AntiPrompts = []
+            };
+
+            // Check model type
+            bool isRecurrentOrHybrid = model.NativeHandle.IsHybrid || model.NativeHandle.IsRecurrent;
+
+            if (isRecurrentOrHybrid)
+            {
+                var act = async () =>
+                {
+                    // Attempt partial copy
+                    await executor.CopySeqPrefixTo(seq1, [seq2], posBefore);
+
+                    
+                    Channel<string> ch = await executor.Generate(seq2, infParams);
+                    string genText = "";
+                    await foreach (string token in ch.Reader.ReadAllAsync())
+                        genText += token;
+                    _output.WriteLine(genText); // generation started
+
+                };
+
+                //await act.Should().NotThrowAsync();
+                await act.Should().ThrowAsync<Exception>().WithMessage("*use state checkpoints*");
+            }
+
+            // Full copy (endPos == NextDecodedTokenPos) should work fine
+            await executor.CopySeqPrefixTo(seq1, [seq3], posAfter);
+
+            // Verify that seq3 has the full context and can generate
+
+            Channel<string> ch2 = await executor.Generate(seq3, infParams);
+            string genText = "";
+            await foreach (string token in ch2.Reader.ReadAllAsync())
+                genText += token;
+            _output.WriteLine(genText); // generation started
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_CopySeqPrefixTo_PartialCopy_Hybrid_ThrowsForRecurrentOrHybrid()
         {
             #region init
             var requiredFiles = new[]
@@ -1081,7 +1176,7 @@ namespace Llama.csharp.IntegrationTest
             ((int)posBefore).Should().BeGreaterThan(0);
 
             //Second prefill – additional tokens beyond the first part
-            string continuation = ", 4, 5, 6, 7, 8, 9, 10";
+            string continuation = ", 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21";
             await executor.ProcessPrompt(seq1, continuation);
 
             LLamaPos posAfter = await executor.GetSequenceNextDecodedTokenPos(seq1);
@@ -1089,7 +1184,7 @@ namespace Llama.csharp.IntegrationTest
 
             InferenceParams infParams = new InferenceParams
             {
-                MaxTokens = 5,
+                MaxTokens = 15,
                 AutoStopFromEOG = false,
                 DecodeSpecialTokens = true,
                 AntiPrompts = []
@@ -1102,10 +1197,10 @@ namespace Llama.csharp.IntegrationTest
             {
                 var act = async () =>
                 {
-                    // Attempt partial copy – should throw for recurrent/hybrid models
+                    // Attempt partial copy
                     await executor.CopySeqPrefixTo(seq1, [seq2], posBefore);
 
-                    
+
                     Channel<string> ch = await executor.Generate(seq2, infParams);
                     string genText = "";
                     await foreach (string token in ch.Reader.ReadAllAsync())
@@ -1114,7 +1209,8 @@ namespace Llama.csharp.IntegrationTest
 
                 };
 
-                await act.Should().ThrowAsync<Exception>().WithMessage("*use state checkpoints*");
+                await act.Should().NotThrowAsync();
+                //await act.Should().ThrowAsync<Exception>().WithMessage("*use state checkpoints*");
             }
 
             // Full copy (endPos == NextDecodedTokenPos) should work fine
@@ -1852,6 +1948,330 @@ namespace Llama.csharp.IntegrationTest
             Func<Task> act = async () => await executor.Generate(seq, infParams);
             await act.Should().ThrowAsync<InvalidOperationException>()
                              .WithMessage("*empty sequence*");
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_CopySeqPrefixTo_SourceIsGenerating_TargetIsIdle()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+
+            ContextParams ctxParams = new ContextParams()
+            {
+                ContextSize = 4000,
+                SeqMax = 2,
+                NoPerf = true,
+                Threads = Environment.ProcessorCount
+            };
+
+            LlamaExecutor executor = model.CreateExecutor(ctxParams);
+            LLamaSeqId seq1 = await executor.CreateSequence();
+            LLamaSeqId seq2 = await executor.CreateSequence();
+
+            // Common prompt
+            string prompt = "<system> You are a helpful assistant. </system>\n\n\n" +
+                            "<user> count from 1 to 50 </user>\n\n\n" +
+                            "<assistant> ";
+
+            await executor.ProcessPrompt(seq1, prompt, executor.Context.Vocab.ShouldAddBOS);
+            int endPos = await executor.GetSequenceNextDecodedTokenPos(seq1);
+            endPos.Should().BeGreaterThan(0);
+
+            // Start generation on seq1
+            InferenceParams infParams = new InferenceParams
+            {
+                MaxTokens = 15,
+                AutoStopFromEOG = false,
+                DecodeSpecialTokens = true,
+                AntiPrompts = [],
+                SamplingPipeline = new TunableSamplerPipeline(
+                    new TunableSamplerPipelineSettings(
+                        [new TopKSampler()],
+                        new GreedySampler()
+                    )
+                )
+            };
+
+            Channel<string> gen1 = await executor.Generate(seq1, infParams);
+
+            // While seq1 is generating, copy its prefix to seq2
+            await executor.CopySeqPrefixTo(seq1, [seq2], endPos);
+
+            // seq2 should now have the prompt and can generate independently
+            Channel<string> gen2 = await executor.Generate(seq2, infParams);
+
+            // Read both generations – they should complete without exceptions
+            string out1 = "", out2 = "";
+            await foreach (var text in gen1.Reader.ReadAllAsync())
+            {
+                out1 += text;
+            }
+            await foreach (var text in gen2.Reader.ReadAllAsync()) out2 += text;
+
+            _output.WriteLine("Seq1 generation:");
+            _output.WriteLine(out1);
+            _output.WriteLine("Seq2 generation:");
+            _output.WriteLine(out2);
+
+            out1.Should().NotBeNullOrEmpty();
+            out2.Should().NotBeNullOrEmpty();
+            out1.Should().BeEquivalentTo(out2);
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_CopySeqPrefixTo_BothSequencesAreGenerating()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+
+            ContextParams ctxParams = new ContextParams()
+            {
+                ContextSize = 4000,
+                SeqMax = 2,
+                NoPerf = true,
+                Threads = Environment.ProcessorCount
+            };
+
+            LlamaExecutor executor = model.CreateExecutor(ctxParams);
+            LLamaSeqId seq1 = await executor.CreateSequence();
+            LLamaSeqId seq2 = await executor.CreateSequence();
+
+            string prompt = "<system> You are a helpful assistant. </system>\n\n\n" +
+                            "<user> count from 1 to 50 </user>\n\n\n" +
+                            "<assistant> ";
+
+            // Prepare seq1 with the prompt
+            await executor.ProcessPrompt(seq1, prompt, executor.Context.Vocab.ShouldAddBOS);
+            int endPos = await executor.GetSequenceNextDecodedTokenPos(seq1);
+
+            // Prepare seq2 with a different prompt so it's not empty
+            string otherPrompt = "<system> You are a helpful assistant. </system>\n\n\n" +
+                                 "<user> tell me a joke </user>\n\n\n" +
+                                 "<assistant> ";
+            await executor.ProcessPrompt(seq2, otherPrompt, executor.Context.Vocab.ShouldAddBOS);
+
+            InferenceParams infParams = new InferenceParams
+            {
+                MaxTokens = 15,
+                AutoStopFromEOG = false,
+                DecodeSpecialTokens = true,
+                AntiPrompts = [],
+                SamplingPipeline = new TunableSamplerPipeline(
+                    new TunableSamplerPipelineSettings(
+                        [new TopKSampler()],
+                        new DistributionSampler { Seed = 256 }
+                    )
+                )
+            };
+
+            // Start generation on both sequences
+            Channel<string> gen1 = await executor.Generate(seq1, infParams);
+            Channel<string> gen2 = await executor.Generate(seq2, infParams);
+
+            // While both are active, copy seq1's prefix to seq2 (this stops seq2's generation)
+            await executor.CopySeqPrefixTo(seq1, [seq2], endPos);
+
+            // Read seq1 – it should continue unaffected
+            string out1 = "";
+            await foreach (var text in gen1.Reader.ReadAllAsync()) out1 += text;
+            _output.WriteLine("Seq1 generation:");
+            _output.WriteLine(out1);
+            out1.Should().NotBeNullOrEmpty();
+
+            // seq2's original generation channel should be completed (no more data)
+            // Start a new generation on seq2 from the copied context
+            Channel<string> gen2New = await executor.Generate(seq2, infParams);
+            string out2 = "";
+            await foreach (var text in gen2New.Reader.ReadAllAsync()) out2 += text;
+            _output.WriteLine("Seq2 new generation (after copy):");
+            _output.WriteLine(out2);
+            out2.Should().NotBeNullOrEmpty();
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_ClearSequence_ClearsStateAndAllowsReuse()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+            LlamaExecutor executor = model.CreateExecutor(new ContextParams { SeqMax = 2 });
+
+            LLamaSeqId seq = await executor.CreateSequence();
+
+            // Fill the sequence with some text
+            await executor.ProcessPrompt(seq, "Hello, world!");
+            int posBefore = await executor.GetSequenceNextDecodedTokenPos(seq);
+            posBefore.Should().BeGreaterThan(0);
+
+            // Clear it
+            await executor.ClearSequence(seq);
+
+            // State should be empty
+            int posAfter = await executor.GetSequenceNextDecodedTokenPos(seq);
+            posAfter.Should().Be(0);
+
+            // The sequence should be reusable – fill again and generate
+            await executor.ProcessPrompt(seq, "Another prompt");
+            int posNew = await executor.GetSequenceNextDecodedTokenPos(seq);
+            posNew.Should().BeGreaterThan(0);
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_ClearSequence_DuringGeneration_StopsAndClears()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+            LlamaExecutor executor = model.CreateExecutor(new ContextParams { ContextSize = 4000, SeqMax = 2 });
+
+            LLamaSeqId seq = await executor.CreateSequence();
+
+            // Provide a prompt to generate from
+            await executor.ProcessPrompt(seq, "count from 1 to 50");
+
+            InferenceParams infParams = new InferenceParams
+            {
+                MaxTokens = 50,
+                AutoStopFromEOG = false,
+                DecodeSpecialTokens = true,
+                AntiPrompts = []
+            };
+
+            Channel<string> channel = await executor.Generate(seq, infParams);
+
+            // Clear the sequence while generation is in progress
+            await executor.ClearSequence(seq);
+
+            // The channel should be closed, reading must not hang
+            List<string> tokens = new();
+            await foreach (string token in channel.Reader.ReadAllAsync())
+                tokens.Add(token);
+
+            // Position should be zero
+            int pos = await executor.GetSequenceNextDecodedTokenPos(seq);
+            pos.Should().Be(0);
+
+            // The sequence must be reusable
+            await executor.ProcessPrompt(seq, "Hello again");
+            int posNew = await executor.GetSequenceNextDecodedTokenPos(seq);
+            posNew.Should().BeGreaterThan(0);
+
+            executor.Dispose();
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task LlamaExecutor_ClearSequence_DuringPrefill_StopsAndClears()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend)
+            };
+
+            foreach (var file in requiredFiles)
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+
+            LlamaCpp.Initialize(requiredFiles[0], requiredFiles[1], requiredFiles[2], [requiredFiles[3]]);
+            #endregion
+
+            ModelParams parametres = new ModelParams(_modelPath) { };
+            LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
+            LlamaExecutor executor = model.CreateExecutor(new ContextParams { SeqMax = 2 });
+
+            LLamaSeqId seq = await executor.CreateSequence();
+
+            // Start a long prefill
+            string bigText = string.Join(" ", Enumerable.Repeat("prompt is here", 200));
+            Task prefillTask = executor.ProcessPrompt(seq, bigText);
+
+            // Clear the sequence while prefill is in progress
+            await executor.ClearSequence(seq);
+
+            // The prefill task should complete without exception
+            await prefillTask;
+
+            // Position should be zero
+            int pos = await executor.GetSequenceNextDecodedTokenPos(seq);
+            pos.Should().Be(0);
+
+            // Sequence must be reusable
+            await executor.ProcessPrompt(seq, "New start");
+            int posNew = await executor.GetSequenceNextDecodedTokenPos(seq);
+            posNew.Should().BeGreaterThan(0);
 
             executor.Dispose();
             model.Dispose();

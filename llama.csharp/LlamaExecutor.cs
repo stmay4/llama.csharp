@@ -23,6 +23,7 @@ namespace Llama.csharp
         /// <summary>
         /// All currently active context sequences
         /// Data modification and retrieval only under _seqStateSemaphore
+        /// Key == Sequence.Id
         /// </summary>
         private Dictionary<LLamaSeqId, Sequence> _sequences = new Dictionary<LLamaSeqId, Sequence>();
 
@@ -627,7 +628,7 @@ namespace Llama.csharp
                     {
                         if (!_sequences.TryGetValue(id, out var seq))
                             throw new IndexOutOfRangeException($"sequence {id} not exist");
-                        }
+                    }
 
                     if ((int)endPos < 1) throw new ArgumentException("End position must be 1 or greater");
 

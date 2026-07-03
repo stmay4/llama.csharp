@@ -45,18 +45,37 @@ namespace Llama.csharp
         public bool EndDeleted { get; set; } = false;
         public LLamaToken DeletedNextToken { get; set; }
 
-        internal void ClearSequenceTokens()
+        internal void ClearState()
         {
             NextDecodedTokenPos = 0;
             LastLogits = null;
             DecodedTokens.Clear();
+            TokensToPrefill.Clear();
             RealTokensCount = 0;
+            Decoder.Reset();
+            EndDeleted = false;
         }
-        internal void CopyStateFrom(Sequence seq)
+
+        internal void CopyStateFrom(Sequence seq, int endPos, LLamaToken? CuttedNextToken = null)
         {
-            NextDecodedTokenPos = seq.NextDecodedTokenPos;
-            LastLogits = seq.LastLogits;
-            DecodedTokens.AddRange(seq.DecodedTokens);
+            NextDecodedTokenPos = endPos;
+            DecodedTokens.Clear();
+            DecodedTokens.AddRange(seq.DecodedTokens.GetRange(0,endPos));
+            TokensToPrefill.Clear();
+            RealTokensCount = 0; // because it is used when caching is split
+            Decoder.Reset();
+            if (CuttedNextToken == null)
+            {
+                LastLogits = seq.LastLogits;
+                EndDeleted = seq.EndDeleted;
+                DeletedNextToken = seq.DeletedNextToken;
+            }
+            else
+            {
+                LastLogits = null;
+                EndDeleted = true;
+                DeletedNextToken = CuttedNextToken.Value;
+            }
         }
 
         internal void SetNewEnd(int nextDecodedTokenPos)
@@ -70,8 +89,8 @@ namespace Llama.csharp
             RealTokensCount = Math.Max(0, RealTokensCount);
 
             NextDecodedTokenPos = nextDecodedTokenPos;
+            
             LastLogits = null;
-
             EndDeleted = true;
             DeletedNextToken = DecodedTokens[nextDecodedTokenPos];
 

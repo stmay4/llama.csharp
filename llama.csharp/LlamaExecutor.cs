@@ -599,6 +599,7 @@ namespace Llama.csharp
         /// <summary>
         /// Copies a prefix from the source sequence to each target sequence.
         /// Target sequences are completely cleared before the copy.
+        /// <br></br><b>IF RECCURENT MODEL only full copy with endPos == NextDecodedTokenPos or use checkpoints</b>
         /// </summary>
         /// <param name="srcId">Identifier of the source sequence.</param>
         /// <param name="targetIds">List of target sequence identifiers that will receive the copied prefix.</param>
@@ -622,41 +623,36 @@ namespace Llama.csharp
             {
                 if (_sequences.TryGetValue(srcId, out var srcSeq))
                 {
-                    if (srcSeq.InferState.State != SeqState.None)
-                        throw new Exception($"{srcId} sequence using in another place: {srcSeq.InferState.State}");
                     foreach (LLamaSeqId id in targetIds)
                     {
                         if (!_sequences.TryGetValue(id, out var seq))
                             throw new IndexOutOfRangeException($"sequence {id} not exist");
-                        else
-                        {
-                            if (seq.InferState.State != SeqState.None)
-                                throw new Exception($"{id} sequence using in another place: {seq.InferState.State}");
                         }
-                    }
-
-                    if ((int)endPos != srcSeq.NextDecodedTokenPos)
-                    {
-                        ThrowIfStateWorkNotSupported();
-                    }
 
                     if ((int)endPos < 1) throw new ArgumentException("End position must be 1 or greater");
 
                     if ((int)endPos > srcSeq.NextDecodedTokenPos) throw new ArgumentException("End position must be lower or equal NextDecodedTokenPos");
+
+                    bool fullCopy = ((int)endPos == srcSeq.NextDecodedTokenPos);
+
+                    if (!fullCopy)
+                    {
+                        if (Context.NativeHandle.ModelHandle.IsRecurrent)
+                            throw new Exception("for recurrent models, use state checkpoints(not yet implemented)");
+                    }
+
+                    LLamaToken? cuttedToken = null;
+                    if (!fullCopy) { cuttedToken = srcSeq.DecodedTokens[(int)endPos]; }
 
                     //copy
                     foreach (LLamaSeqId id in targetIds)
                     {
                         if (_sequences.TryGetValue(id, out var seq))
                         {
-                            if (seq.NextDecodedTokenPos != 0)
-                            {
-                                Context.NativeHandle.SeqMemoryRemoveAll(id);
-                                seq.ClearSequenceTokens();
-                            }
+                            clearSequence(seq);
 
                             Context.NativeHandle.SeqMemoryCopy(srcId, id, 0, endPos);
-                            seq.CopyStateFrom(srcSeq);
+                            seq.CopyStateFrom(srcSeq, (int)endPos, cuttedToken);
                         }
                     }
                 }
@@ -709,6 +705,30 @@ namespace Llama.csharp
             {
                 _seqStateSemaphore.Release();
             }
+        }
+
+        /// <summary>
+        /// Stop sequence tasks and clear state.
+        /// <b>Must be called only under lock.</b>
+        /// </summary>
+        /// <param name="seq">The sequence to clear.</param>
+        private void clearSequence(Sequence seq)
+        {
+
+            if (_prefillSeqs.ContainsKey(seq))
+            {
+                endPrefill(seq);
+            }
+            else if (_inferenceSeqs.ContainsKey(seq))
+            {
+                endInference(seq);
+            }
+
+            if (seq.NextDecodedTokenPos != 0)
+            {
+                Context.NativeHandle.SeqMemoryRemoveAll(seq.Id);
+            }
+            seq.ClearState();
         }
 
         /// <summary>

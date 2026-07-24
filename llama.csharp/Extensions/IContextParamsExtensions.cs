@@ -6,13 +6,11 @@ namespace Llama.csharp.Extensions
     public static class IContextParamsExtensions
     {
         /// <summary>
-        /// Convert the given `IModelParams` into a `LLamaContextParams`
+        /// Convert the given `IContextParams` into a `LLamaContextParams`
         /// </summary>
         /// <param name="params"></param>
         /// <param name="result"></param>
         /// <returns></returns>
-        /// <exception cref="FileNotFoundException"></exception>
-        /// <exception cref="ArgumentException"></exception>
         public static void ToLlamaContextParams(this IContextParams @params, out LLamaContextParams result)
         {
             result = LLamaContextParams.Default();

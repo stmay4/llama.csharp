@@ -299,7 +299,7 @@ namespace Llama.csharp.Native
         /// <exception cref="InvalidOperationException"></exception>
         private static void EnsureMtmdInitialized()
         {
-            if (_mtmdHandle == IntPtr.Zero)
+            if (_mtmdHandle == IntPtr.Zero || !_initialized)
                 throw new InvalidOperationException("First of all call LlamaCpp.Initialize() with MTMD dll/so");
         }
 

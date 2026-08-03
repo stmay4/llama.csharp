@@ -1,10 +1,5 @@
 ﻿using Llama.csharp.Interfaces;
 using Llama.csharp.Native;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Llama.csharp.Extensions
 {
@@ -16,9 +11,9 @@ namespace Llama.csharp.Extensions
         /// <param name="params"></param>
         /// <param name="result"></param>
         /// <returns></returns>
-        public static void ToLlamaContextParams(this IMtmdParams @params, out LlamaMtmdParams result)
+        public static void ToMtmdContextParams(this IMtmdParams @params, out MtmdContextParams result)
         {
-            result = LlamaMtmdParams.Default();
+            result = MtmdContextParams.Default();
             result.use_gpu = @params.UseGpu;
             result.print_timings = @params.PrintTimings;
             result.n_threads = @params.Threads ?? result.n_threads;

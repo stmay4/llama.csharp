@@ -3,10 +3,10 @@
 namespace Llama.csharp.Native
 {
     /// <summary>
-    /// A C# representation of the llama.cpp `llama_context_params` struct
+    /// A C# representation of the mtmd.h `mtmd_context_params` struct
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    public struct LlamaMtmdParams
+    public struct MtmdContextParams
     {
         /// <summary>
         /// if true, use loaded gpu backend
@@ -99,9 +99,9 @@ namespace Llama.csharp.Native
         /// Get the default LLamaMtmdParams
         /// </summary>
         /// <returns></returns>
-        public static LlamaMtmdParams Default()
+        public static MtmdContextParams Default()
         {
-            return LlamaCpp.Llama_MtmdDefaultParams();
+            return LlamaCpp.Mtmd_DefaultContextParams();
         }
     }
 }

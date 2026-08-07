@@ -1,9 +1,10 @@
-﻿using System;
+﻿using CommunityToolkit.HighPerformance.Buffers;
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Llama.csharp.Native
 {
@@ -53,6 +54,57 @@ namespace Llama.csharp.Native
         // get the current marker string
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate string mtmd_get_marker(SafeMtmdContextHandle ctx);
+
+        // tokenize an input text prompt and a list of bitmaps (images/audio)
+        // the prompt must have the input image marker (default: "<__media__>") in it
+        // the default marker is defined by mtmd_default_marker()
+        // the marker will be replaced with the image/audio chunk
+        // for example:
+        //   "here is an image: <__media__>\ndescribe it in detail."
+        //   this will gives 3 chunks:
+        //   1. "here is an image: <start_of_image>"
+        //   2. (image/audio tokens)
+        //   3. "<end_of_image>\ndescribe it in detail."
+        // number of bitmaps must be equal to the number of markers in the prompt
+        // this function is thread-safe (shared ctx)
+        // return values:
+        //   0 on success
+        //   1 on number of bitmaps not matching the number of markers
+        //   2 on image preprocessing error
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private unsafe delegate int mtmd_tokenize(SafeMtmdContextHandle ctx,
+                                                    SafeMtmdInputChunksHandle output,
+                                                    MtmdInputTextNative* text,
+                                                    IntPtr* bitmaps,
+                                                    nuint n_bitmaps);
+
+        #region batch
+
+        // batch encoding API
+        // chunks are not owned by the batch, they will not be freed by mtmd_batch_free()
+        // batch is valid for a given context, cannot be shared across contexts
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate SafeMtmdBatchHandle mtmd_batch_init(SafeMtmdContextHandle ctx);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void mtmd_batch_free(IntPtr batch);
+
+        // only media chunks are allowed, text chunks will be rejected
+        // returns 0 on success
+        // returns 1 on generic error
+        // returns 2 if the batch is too large (chunk won't be added)
+        // returns 3 if it cannot be batched with the existing chunks in the batch
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private unsafe delegate int mtmd_batch_add_chunk(SafeMtmdBatchHandle batch, MtmdInputChunkPtr* chunk);
+
+        // returns 0 on success
+        // returns 1 on generic error
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int mtmd_batch_encode(SafeMtmdBatchHandle batch);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private unsafe delegate float* mtmd_batch_get_output_embd(SafeMtmdBatchHandle batch, MtmdInputChunkPtr* chunk);
+
+        #endregion
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void mtmd_input_chunk_free(IntPtr chunk);
@@ -118,6 +170,18 @@ namespace Llama.csharp.Native
         private static mtmd_get_audio_sample_rate _mtmd_get_audio_sample_rate;
         private static mtmd_get_marker _mtmd_get_marker;
 
+        private static mtmd_tokenize _mtmd_tokenize;
+
+        #region batch
+
+        private static mtmd_batch_init _mtmd_batch_init;
+        private static mtmd_batch_free _mtmd_batch_free;
+        private static mtmd_batch_add_chunk _mtmd_batch_add_chunk;
+        private static mtmd_batch_encode _mtmd_batch_encode;
+        private static mtmd_batch_get_output_embd _mtmd_batch_get_output_embd;
+
+        #endregion
+
         #region bitmap
 
         private static mtmd_bitmap_init _mtmd_bitmap_init;
@@ -136,6 +200,8 @@ namespace Llama.csharp.Native
         private static mtmd_input_chunks_size _mtmd_input_chunks_size;
         private static mtmd_input_chunks_get _mtmd_input_chunks_get;
         private static mtmd_input_chunks_free _mtmd_input_chunks_free;
+
+        MTMD_API size_t                     mtmd_input_chunk_get_n_tokens(const mtmd_input_chunk* chunk);
 
         #endregion
 
@@ -157,6 +223,18 @@ namespace Llama.csharp.Native
             _mtmd_support_audio = GetLibFunction<mtmd_support_audio>(_mtmdHandle, "mtmd_support_audio");
             _mtmd_get_audio_sample_rate = GetLibFunction<mtmd_get_audio_sample_rate>(_mtmdHandle, "mtmd_get_audio_sample_rate");
             _mtmd_get_marker = GetLibFunction<mtmd_get_marker>(_mtmdHandle, "mtmd_get_marker");
+
+            _mtmd_tokenize = GetLibFunction<mtmd_tokenize>(_mtmdHandle, "mtmd_tokenize");
+
+            #region batch
+
+            _mtmd_batch_init = GetLibFunction<mtmd_batch_init>(_mtmdHandle, "mtmd_batch_init");
+            _mtmd_batch_free = GetLibFunction<mtmd_batch_free>(_mtmdHandle, "mtmd_batch_free");
+            _mtmd_batch_add_chunk = GetLibFunction<mtmd_batch_add_chunk>(_mtmdHandle, "mtmd_batch_add_chunk");
+            _mtmd_batch_encode = GetLibFunction<mtmd_batch_encode>(_mtmdHandle, "mtmd_batch_encode");
+            _mtmd_batch_get_output_embd = GetLibFunction<mtmd_batch_get_output_embd>(_mtmdHandle, "mtmd_batch_get_output_embd");
+
+            #endregion
 
             #region bitmap
 
@@ -236,6 +314,124 @@ namespace Llama.csharp.Native
         {
             EnsureMtmdInitialized();
             return _mtmd_get_marker(ctx);
+        }
+
+        #endregion
+
+        internal static int Mtmd_Tokenize(SafeMtmdContextHandle ctx,
+                                          SafeMtmdInputChunksHandle output,
+                                          IReadOnlyList<SafeMtmdBitMapHandle> bitmaps)
+        {
+            if (bitmaps == null || bitmaps.Count == 0)
+                throw new ArgumentException("Mtmd_Tokenize: bitmaps");
+
+            //маркер для строки ввода
+            string marker = Mtmd_GetMarker(ctx);
+
+            if (string.IsNullOrEmpty(marker))
+                throw new Exception("Mtmd_Tokenize: Null marker");
+
+            EnsureMtmdInitialized();
+
+            var acquired = new bool[bitmaps.Count];
+
+            try
+            {
+                // Увеличиваем счётчики ссылок у всех SafeHandle на время вызова
+                for (int i = 0; i < bitmaps.Count; i++)
+                {
+                    bool success = false;
+                    bitmaps[i].DangerousAddRef(ref success);
+                    if (!success)
+                        throw new ObjectDisposedException($"Mtmd_Tokenize: Bitmap at index {i} is disposed");
+                    acquired[i] = true;
+                }
+
+                // Массив IntPtr для хранения нативных указателей
+                nuint size = (nuint)bitmaps.Count;
+
+                var ptrs = new IntPtr[bitmaps.Count];
+                for (int i = 0; i < bitmaps.Count; i++)
+                    ptrs[i] = bitmaps[i].DangerousGetHandle(); // Get raw handle
+
+                // Собираем строку с маркерами для умного чанкового токенизатора mtmd
+                string text = "";
+                for (int i = 0; i < bitmaps.Count; i++)
+                    text += marker;
+
+                Encoding encoding = Encoding.UTF8;
+                var bytesCount = encoding.GetByteCount(text);
+                using var bytes = SpanOwner<byte>.Allocate(bytesCount + 1, AllocationMode.Clear);
+
+                encoding.GetBytes(text, bytes.Span);
+
+                unsafe
+                {
+                    fixed (IntPtr* p = ptrs)
+                    fixed (byte* textPtr = bytes.Span)
+                    {
+                        MtmdInputTextNative inputTextNative = new MtmdInputTextNative(textPtr);
+                        MtmdInputTextNative* inputTextPtr = &inputTextNative;
+                        return _mtmd_tokenize(ctx, output, inputTextPtr, p, size);
+                    }
+                }
+            }
+            finally
+            {
+                // Снимаем удержание для корректных, теперь SafeHandle могут быть освобождены
+                for (int i = 0; i < bitmaps.Count; i++)
+                {
+                    if (acquired[i])
+                        bitmaps[i].DangerousRelease();
+                }
+            }
+        }
+
+        #region batch
+
+        internal static SafeMtmdBatchHandle Mtmd_BatchInit(SafeMtmdContextHandle ctx)
+        {
+            EnsureMtmdInitialized();
+            return _mtmd_batch_init(ctx);
+        }
+        internal static void Mtmd_BatchFree(IntPtr batch)
+        {
+            EnsureMtmdInitialized();
+            _mtmd_batch_free(batch);
+        }
+
+        /// <summary>
+        /// only media chunks are allowed, text chunks will be rejected
+        /// returns 0 on success
+        /// returns 1 on generic error
+        /// returns 2 if the batch is too large (chunk won't be added)
+        /// returns 3 if it cannot be batched with the existing chunks in the batch
+        /// </summary>
+        /// <param name="batch"></param>
+        /// <param name="chunk"></param>
+        /// <returns></returns>
+        internal static unsafe int Mtmd_BatchAddChunk(SafeMtmdBatchHandle batch, MtmdInputChunkPtr* chunk)
+        {
+            EnsureMtmdInitialized();
+            return _mtmd_batch_add_chunk(batch, chunk);
+        }
+
+        /// <summary>
+        /// returns 0 on success
+        /// returns 1 on generic error
+        /// </summary>
+        /// <param name="batch"></param>
+        /// <returns></returns>
+        internal static int Mtmd_BatchEncode(SafeMtmdBatchHandle batch)
+        {
+            EnsureMtmdInitialized();
+            return _mtmd_batch_encode(batch);
+        }
+
+        internal static unsafe float* Mtmd_BatchGetOutputEmbed(SafeMtmdBatchHandle batch, MtmdInputChunkPtr* chunk)
+        {
+            EnsureMtmdInitialized();
+            return _mtmd_batch_get_output_embd(batch, chunk);
         }
 
         #endregion

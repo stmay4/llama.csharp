@@ -16,10 +16,18 @@ namespace Llama.csharp.Native
     /// </summary>
     internal class SafeMtmdInputChunksHandle : SafeLLamaHandleBase
     {
+        private SafeMtmdInputChunksHandle() { }
         protected override bool ReleaseHandle()
         {
             LlamaCpp.Mtmd_InputChunksFree(handle); 
             return true;
         }
+
+        internal static SafeMtmdInputChunksHandle Init()
+        {
+            return LlamaCpp.Mtmd_InputChunksInit();
+        }
+
+        Добавить функции для получения размера и отдельных чанков
     }
 }

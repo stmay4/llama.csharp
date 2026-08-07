@@ -25,6 +25,7 @@ namespace Llama.csharp.Native
     /// </summary>
     internal class SafeMtmdBitMapHandle : SafeLLamaHandleBase
     {
+        private SafeMtmdBitMapHandle() { }
         public static SafeMtmdBitMapHandle InitFromImage(uint nx, uint ny, Span<byte> image)
         {
             return LlamaCpp.Mtmd_BitMapInitFromImage(nx, ny, image);

@@ -2,11 +2,13 @@
 using Llama.csharp.Extensions;
 using Llama.csharp.Interfaces;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Llama.csharp.Native
 {
@@ -104,11 +106,12 @@ namespace Llama.csharp.Native
         //   0 on success
         //   1 on number of bitmaps not matching the number of markers
         //   2 on image preprocessing error
-        MTMD_API int32_t mtmd_tokenize(mtmd_context* ctx,
-                                       mtmd_input_chunks* output,
-                               const mtmd_input_text* text,
-                               const mtmd_bitmap** bitmaps,
-                               size_t n_bitmaps); 
-            //в mtmdcontext, нет здесь, здесь все что нативные функции
+        internal void Tokenize(SafeMtmdInputChunksHandle outputChunks, List<SafeMtmdBitMapHandle> bitmaps)
+        {
+            LlamaCpp.Mtmd_Tokenize(this, outputChunks, bitmaps);
+        } 
+
+        
+            
     }
 }

@@ -53,7 +53,7 @@ namespace Llama.csharp.Native
 
         // get the current marker string
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate string mtmd_get_marker(SafeMtmdContextHandle ctx);
+        private delegate IntPtr mtmd_get_marker(SafeMtmdContextHandle ctx);
 
         // tokenize an input text prompt and a list of bitmaps (images/audio)
         // the prompt must have the input image marker (default: "<__media__>") in it
@@ -106,8 +106,8 @@ namespace Llama.csharp.Native
 
         #endregion
 
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate void mtmd_input_chunk_free(IntPtr chunk);
+        //[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        //private delegate void mtmd_input_chunk_free(IntPtr chunk);
 
         #region bitmap
 
@@ -153,6 +153,16 @@ namespace Llama.csharp.Native
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void mtmd_input_chunks_free(IntPtr chunks);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private unsafe delegate nuint mtmd_input_chunk_get_n_tokens(MtmdInputChunkPtr* chunk);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private unsafe delegate MtmdInputChunkType mtmd_input_chunk_get_type(MtmdInputChunkPtr* chunk);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private unsafe delegate LLamaToken* mtmd_input_chunk_get_tokens_text (MtmdInputChunkPtr * chunk, nuint* n_tokens_output); // возвращает указатель на массив токенов (структур)
+
 
         #endregion
 
@@ -201,12 +211,14 @@ namespace Llama.csharp.Native
         private static mtmd_input_chunks_get _mtmd_input_chunks_get;
         private static mtmd_input_chunks_free _mtmd_input_chunks_free;
 
-        MTMD_API size_t                     mtmd_input_chunk_get_n_tokens(const mtmd_input_chunk* chunk);
+        private static mtmd_input_chunk_get_n_tokens _mtmd_input_chunk_get_n_tokens;
+        private static mtmd_input_chunk_get_type _mtmd_input_chunk_get_type;
+        private static mtmd_input_chunk_get_tokens_text _mtmd_input_chunk_get_tokens_text;
 
         #endregion
 
         private static mtmd_free _mtmd_free;
-        private static mtmd_input_chunk_free _mtmd_input_chunk_free;
+        //private static mtmd_input_chunk_free _mtmd_input_chunk_free;
 
         #endregion
 
@@ -255,10 +267,14 @@ namespace Llama.csharp.Native
             _mtmd_input_chunks_get = GetLibFunction<mtmd_input_chunks_get>(_mtmdHandle, "mtmd_input_chunks_get");
             _mtmd_input_chunks_free = GetLibFunction<mtmd_input_chunks_free>(_mtmdHandle, "mtmd_input_chunks_free");
 
+            _mtmd_input_chunk_get_n_tokens = GetLibFunction<mtmd_input_chunk_get_n_tokens>(_mtmdHandle, "mtmd_input_chunk_get_n_tokens");
+            _mtmd_input_chunk_get_type = GetLibFunction<mtmd_input_chunk_get_type>(_mtmdHandle, "mtmd_input_chunk_get_type");
+            _mtmd_input_chunk_get_tokens_text = GetLibFunction<mtmd_input_chunk_get_tokens_text>(_mtmdHandle, "mtmd_input_chunk_get_tokens_text");
+
             #endregion
 
             _mtmd_free = GetLibFunction<mtmd_free>(_mtmdHandle, "mtmd_free");
-            _mtmd_input_chunk_free = GetLibFunction<mtmd_input_chunk_free>(_mtmdHandle, "mtmd_input_chunk_free");
+            //_mtmd_input_chunk_free = GetLibFunction<mtmd_input_chunk_free>(_mtmdHandle, "mtmd_input_chunk_free");
         }
 
         internal static MtmdContextParams Mtmd_DefaultContextParams()
@@ -310,10 +326,11 @@ namespace Llama.csharp.Native
             return _mtmd_get_audio_sample_rate(ctx);
         }
 
-        internal static string Mtmd_GetMarker(SafeMtmdContextHandle ctx)
+        internal static string? Mtmd_GetMarker(SafeMtmdContextHandle ctx)
         {
             EnsureMtmdInitialized();
-            return _mtmd_get_marker(ctx);
+            IntPtr ptr = _mtmd_get_marker(ctx);
+            return ptr == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(ptr);
         }
 
         #endregion
@@ -326,7 +343,7 @@ namespace Llama.csharp.Native
                 throw new ArgumentException("Mtmd_Tokenize: bitmaps");
 
             //маркер для строки ввода
-            string marker = Mtmd_GetMarker(ctx);
+            string? marker = Mtmd_GetMarker(ctx);
 
             if (string.IsNullOrEmpty(marker))
                 throw new Exception("Mtmd_Tokenize: Null marker");
@@ -513,12 +530,35 @@ namespace Llama.csharp.Native
             EnsureMtmdInitialized();
             return _mtmd_input_chunks_get(chunks, idx);
         }
-        #endregion
 
-        internal static void Mtmd_FreeInputChunk(IntPtr chunk)
+        internal unsafe static nuint Mtmd_InputChunkGetNTokens(MtmdInputChunkPtr* chunk)
         {
             EnsureMtmdInitialized();
-            _mtmd_input_chunk_free(chunk);
+            return _mtmd_input_chunk_get_n_tokens(chunk);
         }
+
+        internal unsafe static MtmdInputChunkType Mtmd_InputChunkGetType(MtmdInputChunkPtr* chunk)
+        {
+            EnsureMtmdInitialized();
+            return _mtmd_input_chunk_get_type(chunk);
+        }
+
+        internal unsafe static LLamaToken* Mtmd_InputChunkGetTokensText(MtmdInputChunkPtr* chunk, out nuint n_tokens_output)
+        {
+            EnsureMtmdInitialized();
+            nuint nTokens;
+            var tokensPtr = _mtmd_input_chunk_get_tokens_text(chunk, &nTokens);
+            n_tokens_output = nTokens;
+            return tokensPtr;
+        }
+
+        #endregion
+
+        // не нужен изза общего освобождения всех чанков в chunks
+        //internal static void Mtmd_FreeInputChunk(IntPtr chunk)
+        //{
+        //    EnsureMtmdInitialized();
+        //    _mtmd_input_chunk_free(chunk);
+        //}
     }
 }

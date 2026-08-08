@@ -235,157 +235,157 @@ namespace Llama.csharp.Native
 
         #region Public Methods
 
-        public static int Llama_SamplerChainN(SafeLLamaSamplerChainHandle chain)
+        internal static int Llama_SamplerChainN(SafeLLamaSamplerChainHandle chain)
         {
             EnsureInitialized();
             return _llama_sampler_chain_n(chain);
         }
 
-        public static void Llama_SamplerApply(SafeLLamaSamplerChainHandle smpl, ref LLamaTokenDataArrayNative cur_p)
+        internal static void Llama_SamplerApply(SafeLLamaSamplerChainHandle smpl, ref LLamaTokenDataArrayNative cur_p)
         {
             EnsureInitialized();
             _llama_sampler_apply(smpl, ref cur_p);
         }
 
-        public static LLamaToken Llama_SamplerSample(SafeLLamaSamplerChainHandle smpl, SafeLLamaContextHandle ctx, int idx)
+        internal static LLamaToken Llama_SamplerSample(SafeLLamaSamplerChainHandle smpl, SafeLLamaContextHandle ctx, int idx)
         {
             EnsureInitialized();
             return _llama_sampler_sample(smpl, ctx, idx);
         }
 
-        public static void Llama_SamplerReset(SafeLLamaSamplerChainHandle smpl)
+        internal static void Llama_SamplerReset(SafeLLamaSamplerChainHandle smpl)
         {
             EnsureInitialized();
             _llama_sampler_reset(smpl);
         }
 
-        public static void Llama_SamplerAccept(SafeLLamaSamplerChainHandle smpl, LLamaToken token)
+        internal static void Llama_SamplerAccept(SafeLLamaSamplerChainHandle smpl, LLamaToken token)
         {
             EnsureInitialized();
             _llama_sampler_accept(smpl, token);
         }
 
-        public static IntPtr Llama_SamplerName(IntPtr smpl)
+        internal static IntPtr Llama_SamplerName(IntPtr smpl)
         {
             EnsureInitialized();
             return _llama_sampler_name(smpl);
         }
 
-        public static uint Llama_SamplerGetSeed(IntPtr smpl)
+        internal static uint Llama_SamplerGetSeed(IntPtr smpl)
         {
             EnsureInitialized();
             return _llama_sampler_get_seed(smpl);
         }
 
-        public static SafeLLamaSamplerChainHandle Llama_SamplerChainInit(LLamaSamplerChainParams @params)
+        internal static SafeLLamaSamplerChainHandle Llama_SamplerChainInit(LLamaSamplerChainParams @params)
         {
             EnsureInitialized();
             return _llama_sampler_chain_init(@params);
         }
 
-        public static LLamaSamplerChainParams Llama_SamplerChainDefaultParams()
+        internal static LLamaSamplerChainParams Llama_SamplerChainDefaultParams()
         {
             EnsureInitialized();
             return _llama_sampler_chain_default_params();
         }
 
-        public static IntPtr Llama_SamplerClone(IntPtr chain)
+        internal static IntPtr Llama_SamplerClone(IntPtr chain)
         {
             EnsureInitialized();
             return _llama_sampler_clone(chain);
         }
 
-        public static IntPtr Llama_SamplerChainRemove(SafeLLamaSamplerChainHandle chain, int i)
+        internal static IntPtr Llama_SamplerChainRemove(SafeLLamaSamplerChainHandle chain, int i)
         {
             EnsureInitialized();
             return _llama_sampler_chain_remove(chain, i);
         }
 
-        public static IntPtr Llama_SamplerInitGreedy()
+        internal static IntPtr Llama_SamplerInitGreedy()
         {
             EnsureInitialized();
             return _llama_sampler_init_greedy();
         }
 
-        public static IntPtr Llama_SamplerInitDist(uint seed)
+        internal static IntPtr Llama_SamplerInitDist(uint seed)
         {
             EnsureInitialized();
             return _llama_sampler_init_dist(seed);
         }
 
-        public static IntPtr Llama_SamplerInitMirostat(int nVocab, uint seed, float tau, float eta, int m)
+        internal static IntPtr Llama_SamplerInitMirostat(int nVocab, uint seed, float tau, float eta, int m)
         {
             EnsureInitialized();
             return _llama_sampler_init_mirostat(nVocab, seed, tau, eta, m);
         }
 
-        public static IntPtr Llama_SamplerInitMirostatV2(uint seed, float tau, float eta)
+        internal static IntPtr Llama_SamplerInitMirostatV2(uint seed, float tau, float eta)
         {
             EnsureInitialized();
             return _llama_sampler_init_mirostat_v2(seed, tau, eta);
         }
 
-        public static IntPtr Llama_SamplerInitTopK(int k)
+        internal static IntPtr Llama_SamplerInitTopK(int k)
         {
             EnsureInitialized();
             return _llama_sampler_init_top_k(k);
         }
 
-        public static IntPtr Llama_SamplerInitTopNSigma(float n)
+        internal static IntPtr Llama_SamplerInitTopNSigma(float n)
         {
             EnsureInitialized();
             return _llama_sampler_init_top_n_sigma(n);
         }
 
-        public static IntPtr Llama_SamplerInitTopP(float p, nint min_keep)
+        internal static IntPtr Llama_SamplerInitTopP(float p, nint min_keep)
         {
             EnsureInitialized();
             return _llama_sampler_init_top_p(p, min_keep);
         }
 
-        public static IntPtr Llama_SamplerInitMinP(float p, nint min_keep)
+        internal static IntPtr Llama_SamplerInitMinP(float p, nint min_keep)
         {
             EnsureInitialized();
             return _llama_sampler_init_min_p(p, min_keep);
         }
 
-        public static IntPtr Llama_SamplerInitTypical(float p, nint min_keep)
+        internal static IntPtr Llama_SamplerInitTypical(float p, nint min_keep)
         {
             EnsureInitialized();
             return _llama_sampler_init_typical(p, min_keep);
         }
 
-        public static IntPtr Llama_SamplerInitTemp(float t)
+        internal static IntPtr Llama_SamplerInitTemp(float t)
         {
             EnsureInitialized();
             return _llama_sampler_init_temp(t);
         }
 
-        public static IntPtr Llama_SamplerInitTempExt(float t, float delta, float exponent)
+        internal static IntPtr Llama_SamplerInitTempExt(float t, float delta, float exponent)
         {
             EnsureInitialized();
             return _llama_sampler_init_temp_ext(t, delta, exponent);
         }
 
-        public static IntPtr Llama_SamplerInitXTC(float p, float t, nint minKeep, uint seed)
+        internal static IntPtr Llama_SamplerInitXTC(float p, float t, nint minKeep, uint seed)
         {
             EnsureInitialized();
             return _llama_sampler_init_xtc(p, t, minKeep, seed);
         }
 
-        public static unsafe IntPtr Llama_SamplerInitInfill(LLamaVocabNative* vocab)
+        internal static unsafe IntPtr Llama_SamplerInitInfill(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_sampler_init_infill(vocab);
         }
 
-        public static unsafe IntPtr Llama_SamplerInitGrammar(LLamaVocabNative* model, string grammar_str, string grammar_root)
+        internal static unsafe IntPtr Llama_SamplerInitGrammar(LLamaVocabNative* model, string grammar_str, string grammar_root)
         {
             EnsureInitialized();
             return _llama_sampler_init_grammar(model, grammar_str, grammar_root);
         }
 
-        public static unsafe IntPtr Llama_SamplerInitGrammarLazyPatterns(
+        internal static unsafe IntPtr Llama_SamplerInitGrammarLazyPatterns(
             LLamaVocabNative* model,
             string grammar_str,
             string grammar_root,
@@ -407,7 +407,7 @@ namespace Llama.csharp.Native
             return _llama_sampler_init_penalties(penalty_last_n, penalty_repeat, penalty_freq, penalty_present);
         }
 
-        public static unsafe IntPtr Llama_SamplerInitDry(
+        internal static unsafe IntPtr Llama_SamplerInitDry(
             LLamaVocabNative* vocab,
             int n_ctx_train,
             float dry_multiplier,
@@ -421,7 +421,7 @@ namespace Llama.csharp.Native
             return _llama_sampler_init_dry(vocab, n_ctx_train, dry_multiplier, dry_base, dry_allowed_length, dry_penalty_last_n, seq_breakers, num_breakers);
         }
 
-        public static unsafe IntPtr Llama_SamplerInitLogitBias(
+        internal static unsafe IntPtr Llama_SamplerInitLogitBias(
             int n_vocab,
             int n_logit_bias,
             LLamaLogitBias* logit_bias)
@@ -430,25 +430,25 @@ namespace Llama.csharp.Native
             return _llama_sampler_init_logit_bias(n_vocab, n_logit_bias, logit_bias);
         }
 
-        public static unsafe LLamaSampler* Llama_SamplerInit(LLamaSamplerI* iface, IntPtr ctx)
+        internal static unsafe LLamaSampler* Llama_SamplerInit(LLamaSamplerI* iface, IntPtr ctx)
         {
             EnsureInitialized();
             return _llama_sampler_init(iface, ctx);
         }
 
-        public static void Llama_SamplerFree(IntPtr sampler)
+        internal static void Llama_SamplerFree(IntPtr sampler)
         {
             EnsureInitialized();
             _llama_sampler_free(sampler);
         }
 
-        public static void Llama_SamplerChainAdd(SafeLLamaSamplerChainHandle chain, IntPtr smpl)
+        internal static void Llama_SamplerChainAdd(SafeLLamaSamplerChainHandle chain, IntPtr smpl)
         {
             EnsureInitialized();
             _llama_sampler_chain_add(chain, smpl);
         }
 
-        public static IntPtr Llama_SamplerChainGet(SafeLLamaSamplerChainHandle chain, int i)
+        internal static IntPtr Llama_SamplerChainGet(SafeLLamaSamplerChainHandle chain, int i)
         {
             EnsureInitialized();
             return _llama_sampler_chain_get(chain, i);

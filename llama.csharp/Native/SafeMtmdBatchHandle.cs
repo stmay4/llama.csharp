@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection.Metadata;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Llama.csharp.Native
+﻿namespace Llama.csharp.Native
 {
     internal class SafeMtmdBatchHandle : SafeLLamaHandleBase
     {
@@ -43,12 +36,14 @@ namespace Llama.csharp.Native
             return LlamaCpp.Mtmd_BatchEncode(this);
         }
 
-        internal unsafe Memory<float> GetChunkEmbeddings(MtmdInputChunkPtr* chunk)
+        internal unsafe LlamaEmbedding[] GetChunkEmbeddings(MtmdInputChunkPtr* chunk, LlamaEmbeddingType chunkType)
         {
-            nuint n_tokens = LlamaCpp.mtmd_input_chunk_get_n_tokens(chunk);
-            int totalFloats = (int)n_tokens * _embeddingSize;
+            // Получаем данные чанка: количестов токенов
+            int n_tokens = (int)LlamaCpp.Mtmd_InputChunkGetNTokens(chunk);
 
-            // Выделяем управляемый массив
+            int totalFloats = n_tokens * _embeddingSize;
+
+            // Выделяем управляемый непрерывный массив
             float[] embeddings = new float[totalFloats];
 
             // Получаем указатель на нативные данные
@@ -62,7 +57,18 @@ namespace Llama.csharp.Native
                                   totalFloats * sizeof(float));
             }
 
-            return new Memory<float>(embeddings);
+            // Создаем запись Memory о данных
+            Memory<float> embedsMemory = embeddings.AsMemory();
+
+            // Создаем результирующий массив длиной с количество эмбеддингов, равное колву входных токенов. Структура LlamaEmbedding содержит запись Memory и Тип эмбеддинга
+            LlamaEmbedding[] result = new LlamaEmbedding[n_tokens];
+
+            for (int i = 0; i < n_tokens; i++) 
+            {
+                result[i] = new LlamaEmbedding(embedsMemory.Slice(i * _embeddingSize, _embeddingSize), chunkType);
+            }
+
+            return result;
         }
     }
 }

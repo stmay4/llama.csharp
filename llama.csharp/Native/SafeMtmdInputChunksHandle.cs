@@ -28,6 +28,14 @@ namespace Llama.csharp.Native
             return LlamaCpp.Mtmd_InputChunksInit();
         }
 
-        Добавить функции для получения размера и отдельных чанков
+        internal int GetChunkCount()
+        {
+            return (int)LlamaCpp.Mtmd_InputChunksSize(this);
+        }
+
+        internal unsafe MtmdInputChunkPtr* GetChunk(int id)
+        {
+            return LlamaCpp.Mtmd_InputChunksGet(this, (nuint)id);
+        }
     }
 }

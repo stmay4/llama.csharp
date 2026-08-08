@@ -13,8 +13,8 @@ namespace Llama.csharp
 {
     public class MtmdContext : IDisposable
     {
-        private Dictionary<SafeMtmdInputChunksHandle /*work (one media of three chunks), must be Disposed in the end of work*/, 
-            TaskCompletionSource<Memory<float>> /*return result task*/> _works = new();
+        private Dictionary<SafeMtmdInputChunksHandle /*work (one media of three chunks), must be Disposed in the end of work*/,
+            TaskCompletionSource<LlamaEmbedding[]> /*return result task*/> _works = new();
 
         private readonly CancellationTokenSource _mtmdContextLifeToken = new CancellationTokenSource();
 
@@ -44,21 +44,23 @@ namespace Llama.csharp
 
         // метод регистрации картинок, видео и звука на энкод, на вход спаны не битмапы
 
-        public async Task<(string BOM, string EOM, Task<Memory<float>> embeds)> EncodeImage(uint nx, uint ny, Memory<byte> image)
+        public async Task<(LLamaToken[] BOM, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)> EncodeImage(uint nx, uint ny, Memory<byte> image)
         {
             return (await EncodeImages([nx], [ny], [image]))[0];
         }
 
         //для автоудаления битмапов
-        public async Task<Dictionary<int, (string BOM, string EOM, Task<Memory<float>> embeds)>> EncodeImages(List<uint> nxs, List<uint> nys, List<Memory<byte>> images)
+        public async Task<(LLamaToken[] BOM /* Begin of media */, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)[]> EncodeImages(List<uint> nxs, List<uint> nys, List<Memory<byte>> images)
         {
+            //Support Vision check here
+
             List<SafeMtmdBitMapHandle> bitmaps = new List<SafeMtmdBitMapHandle>();
             for (int i = 0; i < images.Count; i++)
             {
                 bitmaps.Add(SafeMtmdBitMapHandle.InitFromImage(nxs[i], nys[i], images[i].Span));
             }
 
-            Dictionary<int, (string BOM, string EOM, Task<Memory<float>> embeds)> result = await EncodeMedias(bitmaps);
+            (LLamaToken[] BOM /* Begin of media */, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)[] result = await EncodeMedias(bitmaps);
 
             foreach (SafeMtmdBitMapHandle bitmap in bitmaps)
             {
@@ -69,11 +71,14 @@ namespace Llama.csharp
         }
 
         // общий для всех медиа
-        private async Task<Dictionary<int, (string BOM, string EOM, Task<Memory<float>> embeds)>> EncodeMedias(List<SafeMtmdBitMapHandle> bitmaps)
+        private async Task<(LLamaToken[] BOM /* Begin of media */, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)[]> EncodeMedias(List<SafeMtmdBitMapHandle> bitmaps)
         {
             //проверка параметров
             //создать SafeMtmdInputChunksHandle для каждой картинки
-            List<SafeMtmdInputChunksHandle> outputs = new List<SafeMtmdInputChunksHandle>();
+            SafeMtmdInputChunksHandle[] outputs = new SafeMtmdInputChunksHandle[bitmaps.Count];
+
+            var result = new (LLamaToken[] BOM /* Begin of media */, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)[bitmaps.Count];
+
             for (int i = 0; i < bitmaps.Count; i++)
             {
                 outputs[i] = SafeMtmdInputChunksHandle.Init();
@@ -81,14 +86,46 @@ namespace Llama.csharp
                 //вызвать токенизацию для каждой картинки, чтобы не объединилось в видео и вернуло в outputs по 3 чанка: токен начала + медиа эмбеддинги + токен конца
                 NativeHandle.Tokenize(outputs[i], [bitmaps[i]]);
 
-                //перебрать полученные чанки, текстовые вернуть, а медиа отправить на энкод
-                // Запись string BOI, string EOI, остается проверить, что для всех моделей колво чанков равно колву медиа
+                int chankCount = outputs[i].GetChunkCount();
 
-                // добавляем энкод в задачи Dictionary<SafeMtmdInputChunksHandle, TaskCompletionSource<float[]>>
-                
-                // за норму считаем, что в чанках только один является медиа и всего их 3 (2 текстовых + 1 медиа)
+                for (int j = 0; j < chankCount; j++)
+                {
+                    unsafe
+                    {
+                        MtmdInputChunkPtr* chunk = outputs[i].GetChunk(j);
+                        MtmdInputChunkType type = LlamaCpp.Mtmd_InputChunkGetType(chunk);
+                        if (type == MtmdInputChunkType.MTMD_INPUT_CHUNK_TYPE_TEXT)
+                        {
+                            nuint tokensCount;
 
+                            // Получаем указатель на нативные данные
+                            LLamaToken* nativeData = LlamaCpp.Mtmd_InputChunkGetTokensText(chunk, out tokensCount);
+
+                            // Выделяем управляемый непрерывный массив
+                            LLamaToken[] tokens = new LLamaToken[(int)tokensCount];
+
+                            // Копируем из нативной памяти в управляемую
+                            fixed (LLamaToken* managedPtr = tokens)
+                            {
+                                Buffer.MemoryCopy(nativeData, managedPtr,
+                                                  (int)tokensCount * sizeof(LLamaToken),
+                                                  (int)tokensCount * sizeof(LLamaToken));
+                            }
+
+                            if (result[i].BOM == null)
+                                result[i].BOM = tokens;
+                            else
+                                result[i].EOM = tokens;
+
+                        }
+                        else if (type == MtmdInputChunkType.MTMD_INPUT_CHUNK_TYPE_IMAGE || type == MtmdInputChunkType.MTMD_INPUT_CHUNK_TYPE_AUDIO)
+                        {
+                            // передача в encode chunks
+                        }
+                    }
+                }
             }
+            return result;
         }
 
         private async Task EncodingLoop()

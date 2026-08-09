@@ -36,7 +36,7 @@
             return LlamaCpp.Mtmd_BatchEncode(this);
         }
 
-        internal unsafe LlamaEmbedding[] GetChunkEmbeddings(MtmdInputChunkPtr* chunk, LlamaEmbeddingType chunkType)
+        internal unsafe Memory<float>[] GetChunkEmbeddings(MtmdInputChunkPtr* chunk)
         {
             // Получаем данные чанка: количестов токенов
             int n_tokens = (int)LlamaCpp.Mtmd_InputChunkGetNTokens(chunk);
@@ -61,11 +61,11 @@
             Memory<float> embedsMemory = embeddings.AsMemory();
 
             // Создаем результирующий массив длиной с количество эмбеддингов, равное колву входных токенов. Структура LlamaEmbedding содержит запись Memory и Тип эмбеддинга
-            LlamaEmbedding[] result = new LlamaEmbedding[n_tokens];
+            Memory<float>[] result = new Memory<float>[n_tokens];
 
             for (int i = 0; i < n_tokens; i++) 
             {
-                result[i] = new LlamaEmbedding(embedsMemory.Slice(i * _embeddingSize, _embeddingSize), chunkType);
+                result[i] = embedsMemory.Slice(i * _embeddingSize, _embeddingSize);
             }
 
             return result;

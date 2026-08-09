@@ -323,7 +323,9 @@ namespace Llama.csharp.IntegrationTest
             var mtmdParams = new MtmdParams
             {
                 UseGpu = false,
-                Threads = 8
+                Threads = 8,
+                ImageMinTokens = 8,
+                ImageMaxTokens = 8,
             };
 
             IModelParams modelParams = new ModelParams(_modelPath);
@@ -336,10 +338,69 @@ namespace Llama.csharp.IntegrationTest
                 string imgPath = @"C:\Users\stasm\Pictures\Screenshots\Снимок экрана 2026-06-22 014446.png";
                 (Memory<byte> bmpData, int width, int height) img = ConvertToBmp(imgPath);
                 var result = await ctx.EncodeImage((uint)img.width, (uint)img.height, img.bmpData);
+
+                LlamaEmbedding[] imgEmdeds = await result.embeds;
+                foreach (var emded in imgEmdeds)
+                {
+                    _output.WriteLine(emded.Data.ToString());
+                }
+
                 ctx.Dispose();
             };
 
             await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        [Fact]
+        public void MtmdContext_CheckFields()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend),
+                Path.Combine(_baseDllPath, "mtmd.dll"),
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]],
+                                requiredFiles[4]);
+            #endregion
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8
+            };
+
+            IModelParams modelParams = new ModelParams(_modelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+            // Act
+            var act = () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_mmprojPath, model, mtmdParams);
+                _output.WriteLine("Support Vision: " + ctx.SupportVision.ToString());
+                _output.WriteLine("Support Audio: " + ctx.SupportAudio.ToString());
+                _output.WriteLine("AudioSampleRate: " + ctx.AudioSampleRate.ToString());
+                _output.WriteLine("NonCasualDecode: " + ctx.NonCasualDecode.ToString());
+                _output.WriteLine("MropeDecode: " + ctx.MropeDecode.ToString());
+
+                ctx.Dispose();
+            };
+
+            act.Should().NotThrow();
 
             model.Dispose();
         }

@@ -90,5 +90,60 @@ namespace Llama.csharp.IntegrationTest
 
             act.Should().NotThrow<Exception>("Native library initialization fail");
         }
+
+        /// <summary>
+        /// Load MTMD with valid lib paths
+        /// CPU
+        /// </summary>
+        [Fact]
+        public void LlamaCpp_Initialize_MTMD()
+        {
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, "ggml-cpu-x64.dll"),
+                Path.Combine(_baseDllPath, "mtmd.dll")
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            var act = () => LlamaCpp.Initialize(requiredFiles[0],
+                                                requiredFiles[1],
+                                                requiredFiles[2],
+                                               [requiredFiles[3]], 
+                                                requiredFiles[4]);
+
+            act.Should().NotThrow<Exception>("Native library initialization fail");
+        }
+
+        /// <summary>
+        /// Load MTMD with invalid lib paths
+        /// CPU
+        /// </summary>
+        [Fact]
+        public void LlamaCpp_Initialize_MTMD_invalidpath()
+        {
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, "ggml-cpu-x64.dll"),
+                Path.Combine(_baseDllPath, "mtmdFAIL.dll")
+            };
+
+            var act = () => LlamaCpp.Initialize(requiredFiles[0],
+                                                requiredFiles[1],
+                                                requiredFiles[2],
+                                               [requiredFiles[3]],
+                                                requiredFiles[4]);
+
+            act.Should().Throw<DllNotFoundException>("Native library initialization fail");
+        }
     }
 }

@@ -16,7 +16,7 @@ namespace Llama.csharp
 
         public int? Threads { get; init; } = null;
 
-        public nint? MediaMarker { get; init; } = null;
+        //public nint? MediaMarker { get; init; } = null;
 
         public LlamaFlashAttentionType? FlashAttention { get; init; } = null;
 

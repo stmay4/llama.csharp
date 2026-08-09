@@ -31,7 +31,7 @@ namespace Llama.csharp.Interfaces
         /// <summary>
         /// media marker string (pointer to null-terminated UTF-8)
         /// </summary>
-        IntPtr? MediaMarker { get; }
+        //IntPtr? MediaMarker { get; }
 
         /// <summary>
         /// flash attention type (see llama_flash_attn_type enum)

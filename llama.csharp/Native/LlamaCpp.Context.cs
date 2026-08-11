@@ -523,7 +523,7 @@ namespace Llama.csharp.Native
             _llama_memory_seq_pos_max = GetLibFunction<llama_memory_seq_pos_max>(_llamaHandle, "llama_memory_seq_pos_max");
         }
 
-        public static LLamaContextParams Llama_ContextDefaultParams()
+        internal static LLamaContextParams Llama_ContextDefaultParams()
         {
             EnsureInitialized();
             return _llama_context_default_params();
@@ -532,14 +532,14 @@ namespace Llama.csharp.Native
         /// <summary> 
         /// Создаёт новый контекст на основе модели. 
         /// </summary>
-        public static SafeLLamaContextHandle Llama_ContextInitFromModel(SafeLlamaModelHandle model, LLamaContextParams @params)
+        internal static SafeLLamaContextHandle Llama_ContextInitFromModel(SafeLlamaModelHandle model, LLamaContextParams @params)
         {
             EnsureInitialized();
             return _llama_init_from_model(model, @params);
         }
 
         /// <summary> Освобождает контекст. </summary>
-        public static void Llama_ContextFree(IntPtr ctx)
+        internal static void Llama_ContextFree(IntPtr ctx)
         {
             EnsureInitialized();
             _llama_free(ctx);
@@ -550,7 +550,7 @@ namespace Llama.csharp.Native
         /// <param name="abortCallback">Делегат, который вызывается нативно библиотекой для проверки необходимости
         /// прервать вычисление</param>
         /// <param name="data">Пользовательские данные, передаваемые в callback.</param>
-        public static unsafe void Llama_ContextSetAbortCallback(SafeLLamaContextHandle ctx, GgmlAbortCallback abortCallback, void* data)
+        internal static unsafe void Llama_ContextSetAbortCallback(SafeLLamaContextHandle ctx, GgmlAbortCallback abortCallback, void* data)
         {
             EnsureInitialized();
             _llama_set_abort_callback(ctx, abortCallback, data);
@@ -558,35 +558,35 @@ namespace Llama.csharp.Native
 
         /// <summary> Декодирует пакет токенов. </summary>
         /// <returns>0 - успех, 1 - нет KV слота, отрицательное - ошибка.</returns>
-        public static int Llama_ContextDecode(SafeLLamaContextHandle ctx, LLamaNativeBatch batch)
+        internal static int Llama_ContextDecode(SafeLLamaContextHandle ctx, LLamaNativeBatch batch)
         {
             EnsureInitialized();
             return _llama_decode(ctx, batch);
         }
 
         /// <summary> Кодирует пакет токенов (для encoder‑decoder моделей). </summary>
-        public static int Llama_ContextEncode(SafeLLamaContextHandle ctx, LLamaNativeBatch batch)
+        internal static int Llama_ContextEncode(SafeLLamaContextHandle ctx, LLamaNativeBatch batch)
         {
             EnsureInitialized();
             return _llama_encode(ctx, batch);
         }
 
         /// <summary> Устанавливает количество потоков для декодирования. </summary>
-        public static void Llama_ContextSetNThreads(SafeLLamaContextHandle ctx, int nThreads, int nThreadsBatch)
+        internal static void Llama_ContextSetNThreads(SafeLLamaContextHandle ctx, int nThreads, int nThreadsBatch)
         {
             EnsureInitialized();
             _llama_set_n_threads(ctx, nThreads, nThreadsBatch);
         }
 
         /// <summary> Возвращает количество потоков для генерации одного токена. </summary>
-        public static int Llama_ContextNThreads(SafeLLamaContextHandle ctx)
+        internal static int Llama_ContextNThreads(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_n_threads(ctx);
         }
 
         /// <summary> Возвращает количество потоков для пакетной обработки. </summary>
-        public static int Llama_ContextNThreadsBatch(SafeLLamaContextHandle ctx)
+        internal static int Llama_ContextNThreadsBatch(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_n_threads_batch(ctx);
@@ -604,56 +604,56 @@ namespace Llama.csharp.Native
         }
 
         /// <summary> Возвращает указатель на логиты последнего вызова llama_decode. </summary>
-        public static unsafe float* Llama_ContextGetLogits(SafeLLamaContextHandle ctx)
+        internal static unsafe float* Llama_ContextGetLogits(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_get_logits(ctx);
         }
 
         /// <summary> Возвращает указатель на логиты i-го токена. </summary>
-        public static unsafe float* Llama_ContextGetLogitsIth(SafeLLamaContextHandle ctx, int i)
+        internal static unsafe float* Llama_ContextGetLogitsIth(SafeLLamaContextHandle ctx, int i)
         {
             EnsureInitialized();
             return _llama_get_logits_ith(ctx, i);
         }
 
         /// <summary> Возвращает размер контекстного окна для данного контекста. </summary>
-        public static uint Llama_ContextNCtx(SafeLLamaContextHandle ctx)
+        internal static uint Llama_ContextNCtx(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_n_ctx(ctx);
         }
 
         /// <summary> Возвращает размер пакета для этого контекста. </summary>
-        public static uint Llama_ContextNBatch(SafeLLamaContextHandle ctx)
+        internal static uint Llama_ContextNBatch(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_n_batch(ctx);
         }
 
         /// <summary> Возвращает размер ubatch для этого контекста. </summary>
-        public static uint Llama_ContextNUbatch(SafeLLamaContextHandle ctx)
+        internal static uint Llama_ContextNUbatch(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_n_ubatch(ctx);
         }
 
         /// <summary> Возвращает точный размер состояния (логиты, эмбеддинги, KV‑кэш). </summary>
-        public static nuint Llama_ContextStateGetSize(SafeLLamaContextHandle ctx)
+        internal static nuint Llama_ContextStateGetSize(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_state_get_size(ctx);
         }
 
         /// <summary> Копирует состояние в указанный буфер (unsafe). </summary>
-        public static unsafe nuint Llama_ContextStateGetData(SafeLLamaContextHandle ctx, byte* dest, nuint size)
+        internal static unsafe nuint Llama_ContextStateGetData(SafeLLamaContextHandle ctx, byte* dest, nuint size)
         {
             EnsureInitialized();
             return _llama_state_get_data(ctx, dest, size);
         }
 
         /// <summary> Копирует состояние в буфер Span. </summary>
-        public static unsafe nuint Llama_ContextStateGetData(SafeLLamaContextHandle ctx, Span<byte> dest)
+        internal static unsafe nuint Llama_ContextStateGetData(SafeLLamaContextHandle ctx, Span<byte> dest)
         {
             EnsureInitialized();
             fixed (byte* p = dest)
@@ -663,14 +663,14 @@ namespace Llama.csharp.Native
         }
 
         /// <summary> Восстанавливает состояние из буфера (unsafe). </summary>
-        public static unsafe nuint Llama_ContextStateSetData(SafeLLamaContextHandle ctx, byte* src, nuint size)
+        internal static unsafe nuint Llama_ContextStateSetData(SafeLLamaContextHandle ctx, byte* src, nuint size)
         {
             EnsureInitialized();
             return _llama_state_set_data(ctx, src, size);
         }
 
         /// <summary> Восстанавливает состояние из буфера Span. </summary>
-        public static unsafe nuint Llama_ContextStateSetData(SafeLLamaContextHandle ctx, ReadOnlySpan<byte> src)
+        internal static unsafe nuint Llama_ContextStateSetData(SafeLLamaContextHandle ctx, ReadOnlySpan<byte> src)
         {
             EnsureInitialized();
             fixed (byte* p = src)
@@ -680,21 +680,21 @@ namespace Llama.csharp.Native
         }
 
         /// <summary> Возвращает точный размер KV‑кэша для указанной последовательности. </summary>
-        public static nuint Llama_ContextStateSeqGetSize(SafeLLamaContextHandle ctx, LLamaSeqId seqId)
+        internal static nuint Llama_ContextStateSeqGetSize(SafeLLamaContextHandle ctx, LLamaSeqId seqId)
         {
             EnsureInitialized();
             return _llama_state_seq_get_size(ctx, seqId);
         }
 
         /// <summary> Копирует KV‑кэш последовательности в буфер (unsafe). </summary>
-        public static unsafe nuint Llama_ContextStateSeqGetData(SafeLLamaContextHandle ctx, byte* dst, nuint size, LLamaSeqId seqId)
+        internal static unsafe nuint Llama_ContextStateSeqGetData(SafeLLamaContextHandle ctx, byte* dst, nuint size, LLamaSeqId seqId)
         {
             EnsureInitialized();
             return _llama_state_seq_get_data(ctx, dst, size, seqId);
         }
 
         /// <summary> Копирует KV‑кэш последовательности в буфер Span. </summary>
-        public static unsafe nuint Llama_ContextStateSeqGetData(SafeLLamaContextHandle ctx, Span<byte> dst, LLamaSeqId seqId)
+        internal static unsafe nuint Llama_ContextStateSeqGetData(SafeLLamaContextHandle ctx, Span<byte> dst, LLamaSeqId seqId)
         {
             EnsureInitialized();
             fixed (byte* p = dst)
@@ -704,14 +704,14 @@ namespace Llama.csharp.Native
         }
 
         /// <summary> Восстанавливает KV‑кэш последовательности из буфера (unsafe). </summary>
-        public static unsafe nuint Llama_ContextStateSeqSetData(SafeLLamaContextHandle ctx, byte* src, nuint size, LLamaSeqId destSeqId)
+        internal static unsafe nuint Llama_ContextStateSeqSetData(SafeLLamaContextHandle ctx, byte* src, nuint size, LLamaSeqId destSeqId)
         {
             EnsureInitialized();
             return _llama_state_seq_set_data(ctx, src, size, destSeqId);
         }
 
         /// <summary> Восстанавливает KV‑кэш последовательности из буфера Span. </summary>
-        public static unsafe nuint Llama_ContextStateSeqSetData(SafeLLamaContextHandle ctx, ReadOnlySpan<byte> src, LLamaSeqId destSeqId)
+        internal static unsafe nuint Llama_ContextStateSeqSetData(SafeLLamaContextHandle ctx, ReadOnlySpan<byte> src, LLamaSeqId destSeqId)
         {
             EnsureInitialized();
             fixed (byte* p = src)
@@ -721,126 +721,126 @@ namespace Llama.csharp.Native
         }
 
         /// <summary> Возвращает структуру с замерами производительности контекста. </summary>
-        public static LLamaPerfContextTimings Llama_PerfContext(SafeLLamaContextHandle ctx)
+        internal static LLamaPerfContextTimings Llama_PerfContext(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_perf_context(ctx);
         }
 
         /// <summary> Выводит замеры производительности в stderr. </summary>
-        public static void Llama_PerfContextPrint(SafeLLamaContextHandle ctx)
+        internal static void Llama_PerfContextPrint(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             _llama_perf_context_print(ctx);
         }
 
         /// <summary> Сбрасывает замеры производительности. </summary>
-        public static void Llama_PerfContextReset(SafeLLamaContextHandle ctx)
+        internal static void Llama_PerfContextReset(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             _llama_perf_context_reset(ctx);
         }
 
         /// <summary> Ожидает завершения всех вычислений. Обычно вызывается автоматически. </summary>
-        public static void Llama_Synchronize(SafeLLamaContextHandle ctx)
+        internal static void Llama_Synchronize(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             _llama_synchronize(ctx);
         }
 
         /// <summary> Устанавливает LoRA‑адаптер для контекста. </summary>
-        public static int Llama_ContextSetAdapterLora(SafeLLamaContextHandle ctx, IntPtr adapter, float scale)
+        internal static int Llama_ContextSetAdapterLora(SafeLLamaContextHandle ctx, IntPtr adapter, float scale)
         {
             EnsureInitialized();
             return _llama_set_adapter_lora(ctx, adapter, scale);
         }
 
         /// <summary> Удаляет указанный LoRA‑адаптер из контекста. </summary>
-        public static int Llama_ContextRemoveAdapterLora(SafeLLamaContextHandle ctx, IntPtr adapter)
+        internal static int Llama_ContextRemoveAdapterLora(SafeLLamaContextHandle ctx, IntPtr adapter)
         {
             EnsureInitialized();
             return _llama_rm_adapter_lora(ctx, adapter);
         }
 
         /// <summary> Удаляет все LoRA‑адаптеры из контекста. </summary>
-        public static int Llama_ContextClearAdapterLora(SafeLLamaContextHandle ctx)
+        internal static int Llama_ContextClearAdapterLora(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_clear_adapter_lora(ctx);
         }
 
         /// <summary> Возвращает тип пулинга для этого контекста. </summary>
-        public static LLamaPoolingType Llama_ContextPoolingType(SafeLLamaContextHandle ctx)
+        internal static LLamaPoolingType Llama_ContextPoolingType(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_pooling_type(ctx);
         }
 
         /// <summary> Возвращает указатель на эмбеддинги. </summary>
-        public static unsafe float* Llama_ContextGetEmbeddings(SafeLLamaContextHandle ctx)
+        internal static unsafe float* Llama_ContextGetEmbeddings(SafeLLamaContextHandle ctx)
         {
             EnsureInitialized();
             return _llama_get_embeddings(ctx);
         }
 
         /// <summary> Возвращает указатель на эмбеддинги для заданной последовательности. </summary>
-        public static unsafe float* Llama_ContextGetEmbeddingsSeq(SafeLLamaContextHandle ctx, LLamaSeqId id)
+        internal static unsafe float* Llama_ContextGetEmbeddingsSeq(SafeLLamaContextHandle ctx, LLamaSeqId id)
         {
             EnsureInitialized();
             return _llama_get_embeddings_seq(ctx, id);
         }
 
         /// <summary> Возвращает указатель на эмбеддинги для i-го выхода. </summary>
-        public static unsafe float* Llama_ContextGetEmbeddingsIth(SafeLLamaContextHandle ctx, int i)
+        internal static unsafe float* Llama_ContextGetEmbeddingsIth(SafeLLamaContextHandle ctx, int i)
         {
             EnsureInitialized();
             return _llama_get_embeddings_ith(ctx, i);
         }
 
         /// <summary> Включает/выключает режим прогрева модели. </summary>
-        public static void Llama_ContextSetWarmup(SafeLLamaContextHandle ctx, bool warmup)
+        internal static void Llama_ContextSetWarmup(SafeLLamaContextHandle ctx, bool warmup)
         {
             EnsureInitialized();
             _llama_set_warmup(ctx, warmup);
         }
 
-        public static unsafe int Llama_ContextApplyControlVector(SafeLLamaContextHandle ctx, float* data, nuint len, int n_embd, int il_start, int il_end)
+        internal static unsafe int Llama_ContextApplyControlVector(SafeLLamaContextHandle ctx, float* data, nuint len, int n_embd, int il_start, int il_end)
         {
             EnsureInitialized();
             return _llama_apply_adapter_cvec(ctx, data, len, n_embd, il_start, il_end);
         }
 
-        public static void Llama_ContextMemoryClear(SafeLLamaContextHandle ctx, bool data)
+        internal static void Llama_ContextMemoryClear(SafeLLamaContextHandle ctx, bool data)
         {
             EnsureInitialized();
             _llama_memory_clear(_llama_get_memory(ctx), data);
         }
 
-        public static bool Llama_ContextMemorySeqRemove(SafeLLamaContextHandle ctx, LLamaSeqId seq, LLamaPos p0, LLamaPos p1)
+        internal static bool Llama_ContextMemorySeqRemove(SafeLLamaContextHandle ctx, LLamaSeqId seq, LLamaPos p0, LLamaPos p1)
         {
             EnsureInitialized();
             return _llama_memory_seq_rm(_llama_get_memory(ctx), seq, p0, p1);
         }
 
-        public static void Llama_ContextMemorySeqCopy(SafeLLamaContextHandle ctx, LLamaSeqId src, LLamaSeqId dest, LLamaPos p0, LLamaPos p1)
+        internal static void Llama_ContextMemorySeqCopy(SafeLLamaContextHandle ctx, LLamaSeqId src, LLamaSeqId dest, LLamaPos p0, LLamaPos p1)
         {
             EnsureInitialized();
             _llama_memory_seq_cp(_llama_get_memory(ctx), src, dest, p0, p1);
         }
 
-        public static void Llama_ContextMemorySeqKeep(SafeLLamaContextHandle ctx, LLamaSeqId seq)
+        internal static void Llama_ContextMemorySeqKeep(SafeLLamaContextHandle ctx, LLamaSeqId seq)
         {
             EnsureInitialized();
             _llama_memory_seq_keep(_llama_get_memory(ctx), seq);
         }
 
-        public static LLamaPos Llama_ContextMemorySeqPosMin(SafeLLamaContextHandle ctx, LLamaSeqId seq)
+        internal static LLamaPos Llama_ContextMemorySeqPosMin(SafeLLamaContextHandle ctx, LLamaSeqId seq)
         {
             EnsureInitialized();
             return _llama_memory_seq_pos_min(_llama_get_memory(ctx), seq);
         }
 
-        public static LLamaPos Llama_ContextMemorySeqPosMax(SafeLLamaContextHandle ctx, LLamaSeqId seq)
+        internal static LLamaPos Llama_ContextMemorySeqPosMax(SafeLLamaContextHandle ctx, LLamaSeqId seq)
         {
             EnsureInitialized();
             return _llama_memory_seq_pos_max(_llama_get_memory(ctx), seq);

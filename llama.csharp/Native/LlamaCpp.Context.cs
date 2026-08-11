@@ -91,6 +91,11 @@ namespace Llama.csharp.Native
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate int llama_n_threads_batch(SafeLLamaContextHandle ctx);
 
+        // Set whether to use causal attention or not
+        // If set to true, the model will only attend to the past tokens
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void llama_set_causal_attn(SafeLLamaContextHandle ctx, [MarshalAs(UnmanagedType.U1)] bool causal_attn);
+
         /// <summary>
         /// Token logits obtained from the last call to llama_decode
         /// The logits for the last token are stored in the last row
@@ -423,6 +428,7 @@ namespace Llama.csharp.Native
         private static llama_set_n_threads _llama_set_n_threads;
         private static llama_n_threads _llama_n_threads;
         private static llama_n_threads_batch _llama_n_threads_batch;
+        private static llama_set_causal_attn _llama_set_causal_attn;
         private static llama_get_logits _llama_get_logits;
         private static llama_get_logits_ith _llama_get_logits_ith;
         private static llama_n_ctx _llama_n_ctx;
@@ -482,6 +488,7 @@ namespace Llama.csharp.Native
             _llama_set_n_threads = GetLibFunction<llama_set_n_threads>(_llamaHandle, "llama_set_n_threads");
             _llama_n_threads = GetLibFunction<llama_n_threads>(_llamaHandle, "llama_n_threads");
             _llama_n_threads_batch = GetLibFunction<llama_n_threads_batch>(_llamaHandle, "llama_n_threads_batch");
+            _llama_set_causal_attn = GetLibFunction<llama_set_causal_attn>(_llamaHandle, "llama_set_causal_attn");
             _llama_get_logits = GetLibFunction<llama_get_logits>(_llamaHandle, "llama_get_logits");
             _llama_get_logits_ith = GetLibFunction<llama_get_logits_ith>(_llamaHandle, "llama_get_logits_ith");
             _llama_n_ctx = GetLibFunction<llama_n_ctx>(_llamaHandle, "llama_n_ctx");
@@ -583,6 +590,17 @@ namespace Llama.csharp.Native
         {
             EnsureInitialized();
             return _llama_n_threads_batch(ctx);
+        }
+
+        /// <summary>
+        /// Устанавливает для контекста тип используемого внимания, причинное или полное. Для некоторых моделей mtmd ввод должен обрабатываться полным вниманием.
+        /// </summary>
+        /// <param name="ctx"></param>
+        /// <param name="causal_attn"> если true - причинное(текущий только на основе предыдущих), иначе - полное. </param>
+        internal static void Llama_ContextSetCausalAttn(SafeLLamaContextHandle ctx, bool causal_attn)
+        {
+            EnsureInitialized();
+            _llama_set_causal_attn(ctx, causal_attn);
         }
 
         /// <summary> Возвращает указатель на логиты последнего вызова llama_decode. </summary>

@@ -255,7 +255,7 @@ namespace Llama.csharp
                 }
 
                 // производим энкод
-                int encodeResult = mtmdBatch.Encode();
+                int encodeResult = await Task.Run(() => mtmdBatch.Encode());
 
                 // ошибка пока так обрабатывается
                 if (encodeResult != 0)

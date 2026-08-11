@@ -85,7 +85,17 @@ namespace Llama.csharp
         // для видео и картинок, именно для них может быть испольован MROPE, позиции для MROPE получают здесь после токенизации, получая токены изображения и передавая их в функцию полученмия позиций
         private async Task<(LLamaToken[] BOM /* Begin of media */, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)[]> RegisterVisionEncode(List<SafeMtmdBitMapHandle> bitmaps)
         {
+            //Support Vision check
+            if (!SupportVision) throw new Exception("Model dont support Vision");
+
             //проверка параметров
+            if (bitmaps == null) throw new ArgumentNullException("RegisterVisionEncode: bitmaps is null");
+            if (bitmaps.Count == 0) throw new ArgumentException("RegisterVisionEncode: bitmaps count is 0");
+            foreach (var bitmap in bitmaps)
+            {
+                if (bitmap == null || bitmap.IsClosed || bitmap.IsInvalid) throw new ArgumentException("RegisterVisionEncode: bitmap error");
+            }
+
             //создать SafeMtmdInputChunksHandle для каждой картинки
             SafeMtmdInputChunksHandle[] outputs = new SafeMtmdInputChunksHandle[bitmaps.Count];
 

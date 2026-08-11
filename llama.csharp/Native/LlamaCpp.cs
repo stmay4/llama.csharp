@@ -307,43 +307,43 @@ namespace Llama.csharp.Native
         /// <purpose> API function from llama.h - llama_max_devices </purpose>
         /// </summary>
         /// <returns> </returns>
-        public static long Llama_GetMaxDevices()
+        internal static long Llama_GetMaxDevices()
         {
             EnsureInitialized();
             return _llama_max_devices();
         }
 
-        public static nuint GGML_BackendDevCount()
+        internal static nuint GGML_BackendDevCount()
         {
             EnsureInitialized();
             return _ggml_backend_dev_count();
         }
 
-        public static IntPtr GGML_BackendDevGet(nuint i)
+        internal static IntPtr GGML_BackendDevGet(nuint i)
         {
             EnsureInitialized();
             return _ggml_backend_dev_get(i);
         }
 
-        public static IntPtr GGMLBase_BackendDevBufferType(IntPtr dev)
+        internal static IntPtr GGMLBase_BackendDevBufferType(IntPtr dev)
         {
             EnsureInitialized();
             return _ggmlbase_backend_dev_buffer_type(dev);
         }
 
-        public static IntPtr GGMLBase_BackendBuftName(IntPtr buft)
+        internal static IntPtr GGMLBase_BackendBuftName(IntPtr buft)
         {
             EnsureInitialized();
             return _ggmlbase_backend_buft_name(buft);
         }
 
-        public static bool Llama_SupportsMmap()
+        internal static bool Llama_SupportsMmap()
         {
             EnsureInitialized();
             return _llama_supports_mmap();
         }
 
-        public static bool Llama_SupportsMlock()
+        internal static bool Llama_SupportsMlock()
         {
             EnsureInitialized();
             return _llama_supports_mlock();

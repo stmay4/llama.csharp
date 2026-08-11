@@ -3,10 +3,12 @@ using Llama.csharp.Extensions;
 using Llama.csharp.Interfaces;
 using Llama.csharp.Native;
 using System;
+using System.Text.Encodings;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using Xunit.Abstractions;
+using System.Text;
 
 namespace Llama.csharp.IntegrationTest
 {
@@ -295,7 +297,7 @@ namespace Llama.csharp.IntegrationTest
         }
 
         [Fact]
-        public async Task MtmdContext_EncodeMedia_Valid()
+        public async Task MtmdContext_EncodeImage_Valid()
         {
             #region init
             var requiredFiles = new[]
@@ -343,6 +345,25 @@ namespace Llama.csharp.IntegrationTest
                 foreach (var emded in imgEmdeds)
                 {
                     _output.WriteLine(emded.Data.ToString());
+                }
+
+                foreach (LLamaToken token in result.BOM)
+                    _output.WriteLine(model.Vocab.LLamaTokenToString(token, true));
+                foreach (LLamaToken token in result.EOM)
+                    _output.WriteLine(model.Vocab.LLamaTokenToString(token, true));
+
+                Encoding encoding = Encoding.UTF8;
+                foreach (LLamaToken token in model.Vocab.Tokenize("<|vision_start|>", false, true, encoding))
+                {
+                    _output.WriteLine(token.ToString());
+                }
+                foreach (LLamaToken token in model.Vocab.Tokenize("<|vision_start|> ", false, true, encoding))
+                {
+                    _output.WriteLine(token.ToString());
+                }
+                foreach (LLamaToken token in model.Vocab.Tokenize(" <|vision_start|> ", false, true, encoding))
+                {
+                    _output.WriteLine(token.ToString());
                 }
 
                 ctx.Dispose();

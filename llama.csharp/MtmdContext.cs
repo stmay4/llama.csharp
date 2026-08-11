@@ -154,12 +154,28 @@ namespace Llama.csharp
                                     // передача в encode chunks
                                     TaskCompletionSource<LlamaEmbedding[]> tcs = new TaskCompletionSource<LlamaEmbedding[]>();
 
-                                    LlamaEmbedding[] futureResult = new LlamaEmbedding[(int)LlamaCpp.Mtmd_InputChunkGetNTokens(chunk)];
+                                    int imageTokensCount = (int)LlamaCpp.Mtmd_InputChunkGetNTokens(chunk);
+
+                                    LlamaEmbedding[] futureResult = new LlamaEmbedding[imageTokensCount];
+
+                                    // для получения позиций при MROPE
+                                    MtmdImageTokensPtr* imageTokens = null;
+                                    if (MropeDecode)
+                                    {
+                                        imageTokens = LlamaCpp.Mtmd_InputChunkGetTokensImage(chunk);
+                                    }
 
                                     for (int frCounter = 0; frCounter < futureResult.Length; frCounter++)
                                     {
+                                        // для MROPE заполняем позиции
+                                        if (MropeDecode)
+                                        {
+                                            futureResult[frCounter] = new LlamaEmbedding(Memory<float>.Empty, LlamaEmbeddingType.Image, LlamaCpp.Mtmd_ImageTokensGetDecoderPos(imageTokens, 0, (nuint)frCounter));
+                                        }
+                                        else
+                                        {
                                         futureResult[frCounter] = new LlamaEmbedding(Memory<float>.Empty, LlamaEmbeddingType.Image);
-                                        //для MROPE так же расчет позиции
+                                        }
                                     }
 
                                     _visionWorks.Add(outputs[i], (tcs, futureResult));

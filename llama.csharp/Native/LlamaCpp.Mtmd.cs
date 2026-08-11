@@ -163,6 +163,15 @@ namespace Llama.csharp.Native
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private unsafe delegate LLamaToken* mtmd_input_chunk_get_tokens_text (MtmdInputChunkPtr * chunk, nuint* n_tokens_output); // возвращает указатель на массив токенов (структур)
 
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private unsafe delegate MtmdImageTokensPtr* mtmd_input_chunk_get_tokens_image(MtmdInputChunkPtr* chunk);
+
+        // get position for decoder attention, to be used by M-RoPE models
+        // i is the index of the embedding token, ranging from 0 to mtmd_image_tokens_get_n_tokens() - 1
+        // pos_0 is the absolute position of the first token
+        // return relative position (for example, embedding 0 will have position (0, 0, 0); remember to adjust it to the current absolute position)
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private unsafe delegate MtmdDecoderPosNative mtmd_image_tokens_get_decoder_pos(MtmdImageTokensPtr* image_tokens, LLamaPos pos_0, nuint i);
 
         #endregion
 
@@ -214,6 +223,9 @@ namespace Llama.csharp.Native
         private static mtmd_input_chunk_get_n_tokens _mtmd_input_chunk_get_n_tokens;
         private static mtmd_input_chunk_get_type _mtmd_input_chunk_get_type;
         private static mtmd_input_chunk_get_tokens_text _mtmd_input_chunk_get_tokens_text;
+
+        private static mtmd_input_chunk_get_tokens_image _mtmd_input_chunk_get_tokens_image;
+        private static mtmd_image_tokens_get_decoder_pos _mtmd_image_tokens_get_decoder_pos;
 
         #endregion
 
@@ -270,6 +282,8 @@ namespace Llama.csharp.Native
             _mtmd_input_chunk_get_n_tokens = GetLibFunction<mtmd_input_chunk_get_n_tokens>(_mtmdHandle, "mtmd_input_chunk_get_n_tokens");
             _mtmd_input_chunk_get_type = GetLibFunction<mtmd_input_chunk_get_type>(_mtmdHandle, "mtmd_input_chunk_get_type");
             _mtmd_input_chunk_get_tokens_text = GetLibFunction<mtmd_input_chunk_get_tokens_text>(_mtmdHandle, "mtmd_input_chunk_get_tokens_text");
+            _mtmd_input_chunk_get_tokens_image = GetLibFunction<mtmd_input_chunk_get_tokens_image>(_mtmdHandle, "mtmd_input_chunk_get_tokens_image");
+            _mtmd_image_tokens_get_decoder_pos = GetLibFunction<mtmd_image_tokens_get_decoder_pos>(_mtmdHandle, "mtmd_image_tokens_get_decoder_pos");
 
             #endregion
 
@@ -551,6 +565,23 @@ namespace Llama.csharp.Native
             n_tokens_output = nTokens;
             return tokensPtr;
         }
+
+        internal unsafe static MtmdImageTokensPtr* Mtmd_InputChunkGetTokensImage(MtmdInputChunkPtr* chunk)
+        {
+            EnsureMtmdInitialized();
+            return _mtmd_input_chunk_get_tokens_image(chunk);
+        }
+
+        // get position for decoder attention, to be used by M-RoPE models
+        // i is the index of the embedding token, ranging from 0 to mtmd_image_tokens_get_n_tokens() - 1
+        // pos_0 is the absolute position of the first token
+        // return relative position (for example, embedding 0 will have position (0, 0, 0); remember to adjust it to the current absolute position)
+        internal unsafe static MtmdDecoderPosNative Mtmd_ImageTokensGetDecoderPos(MtmdImageTokensPtr* image_tokens, LLamaPos pos_0, nuint i)
+        {
+            EnsureMtmdInitialized();
+            return _mtmd_image_tokens_get_decoder_pos(image_tokens, pos_0, i);
+        }
+
 
         #endregion
 

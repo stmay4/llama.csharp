@@ -110,6 +110,22 @@ namespace Llama.csharp.Native
         private delegate int llama_model_n_embd(SafeLlamaModelHandle model);
 
         /// <summary>
+        /// Get the dimension of input embedding vectors from this model
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int llama_model_n_embd_inp(SafeLlamaModelHandle model);
+
+        /// <summary>
+        /// Get the dimension of output embedding vectors from this model
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int llama_model_n_embd_out(SafeLlamaModelHandle model);
+
+        /// <summary>
         /// Get the number of layers in this model
         /// </summary>
         /// <param name="model"></param>
@@ -250,6 +266,8 @@ namespace Llama.csharp.Native
         private static llama_n_vocab                     _llama_n_vocab;
         private static llama_model_n_ctx_train           _llama_model_n_ctx_train;
         private static llama_model_n_embd                _llama_model_n_embd;
+        private static llama_model_n_embd_inp            _llama_model_n_embd_inp;
+        private static llama_model_n_embd_out            _llama_model_n_embd_out;
         private static llama_model_n_layer               _llama_model_n_layer;
         private static llama_model_n_head                _llama_model_n_head;
         private static llama_model_n_head_kv             _llama_model_n_head_kv;
@@ -297,6 +315,8 @@ namespace Llama.csharp.Native
             _llama_n_vocab = GetLibFunction<llama_n_vocab>(_llamaHandle, "llama_n_vocab");
             _llama_model_n_ctx_train = GetLibFunction<llama_model_n_ctx_train>(_llamaHandle, "llama_model_n_ctx_train");
             _llama_model_n_embd = GetLibFunction<llama_model_n_embd>(_llamaHandle, "llama_model_n_embd");
+            _llama_model_n_embd_inp = GetLibFunction<llama_model_n_embd_inp>(_llamaHandle, "llama_model_n_embd_inp");
+            _llama_model_n_embd_out = GetLibFunction<llama_model_n_embd_out>(_llamaHandle, "llama_model_n_embd_out");
             _llama_model_n_layer = GetLibFunction<llama_model_n_layer>(_llamaHandle, "llama_model_n_layer");
             _llama_model_n_head = GetLibFunction<llama_model_n_head>(_llamaHandle, "llama_model_n_head");
             _llama_model_n_head_kv = GetLibFunction<llama_model_n_head_kv>(_llamaHandle, "llama_model_n_head_kv");
@@ -338,6 +358,18 @@ namespace Llama.csharp.Native
         {
             EnsureInitialized();
             return _llama_model_n_embd(model);
+        }
+
+        internal static int Llama_ModelNEmbdInput(SafeLlamaModelHandle model)
+        {
+            EnsureInitialized();
+            return _llama_model_n_embd_inp(model);
+        }
+
+        internal static int Llama_ModelNEmbdOutput(SafeLlamaModelHandle model)
+        {
+            EnsureInitialized();
+            return _llama_model_n_embd_out(model);
         }
 
         internal static ulong Llama_ModelSize(SafeLlamaModelHandle model)

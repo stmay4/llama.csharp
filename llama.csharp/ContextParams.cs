@@ -12,7 +12,7 @@ namespace Llama.csharp
 
         public uint UBatchSize { get; init; } = 512;
 
-        public uint SeqMax { get; init; } = 1; //max is 64 maybe, maybe 256. I haven't checked yet.
+        public uint SeqMax { get; init; } = 1; //max is 256 (byte)
 
         public bool Embeddings { get; init; } = false;
 

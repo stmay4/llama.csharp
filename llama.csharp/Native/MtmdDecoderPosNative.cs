@@ -11,9 +11,9 @@ namespace Llama.csharp.Native
     [StructLayout(LayoutKind.Sequential)]
     internal struct MtmdDecoderPosNative
     {
-        uint t;
-        uint x;
-        uint y;
-        uint z; // unused for now, reserved for future use
+        public uint t;
+        public uint x;
+        public uint y;
+        public uint z; // unused for now, reserved for future use
     }
 }

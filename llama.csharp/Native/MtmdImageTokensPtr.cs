@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Llama.csharp.Native
+﻿namespace Llama.csharp.Native
 {
+    /// <summary>
+    /// Typed IntPtr for convenience
+    /// </summary>
     internal struct MtmdImageTokensPtr
     {
     }

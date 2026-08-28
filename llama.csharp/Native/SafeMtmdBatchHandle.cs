@@ -13,7 +13,7 @@
         internal static SafeMtmdBatchHandle Init(SafeMtmdContextHandle ctx)
         {
             SafeMtmdBatchHandle batch = LlamaCpp.Mtmd_BatchInit(ctx);
-            batch._embeddingSize = ctx.EmbeddingSize;
+            batch._embeddingSize = ctx.InputEmbeddingSize;
             return batch;
         }
 

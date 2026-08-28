@@ -19,6 +19,11 @@ namespace Llama.csharp.Native
         public int EmbeddingSize => ThrowIfDisposed().EmbeddingSize;
 
         /// <summary>
+        /// Dimension of input embedding vectors
+        /// </summary>
+        public int InputEmbeddingSize => ThrowIfDisposed().InputEmbeddingSize;
+
+        /// <summary>
         /// Get the maximum batch size for this context
         /// </summary>
         public uint BatchSize => LlamaCpp.Llama_ContextNBatch(this);
@@ -412,6 +417,15 @@ namespace Llama.csharp.Native
         internal void SeqMemoryKeep(LLamaSeqId seq)
         {
             LlamaCpp.Llama_ContextMemorySeqKeep(this, seq);
+        }
+
+        #endregion
+
+        #region AttentionSettings
+
+        internal void SetCausalAttention(bool isCausal)
+        {
+            LlamaCpp.Llama_ContextSetCausalAttn(this, isCausal);
         }
 
         #endregion

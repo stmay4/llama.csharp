@@ -1,25 +1,39 @@
-﻿using CommunityToolkit.HighPerformance;
-using Llama.csharp.Extensions;
+﻿using Llama.csharp.Extensions;
 using Llama.csharp.Interfaces;
 using Llama.csharp.Native;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using SixLabors.ImageSharp.PixelFormats;
+using System.Reflection;
 
 namespace Llama.csharp
 {
     public class MtmdContext : IDisposable
     {
+        /// <summary>
+        /// Indicates whether causal or full attention is used for decoding image embeddings by the language model
+        /// </summary>
         public bool NonCasualDecode => NativeHandle.NonCasualDecode;
+
+        /// <summary>
+        /// Mrope positioning?
+        /// </summary>
         public bool MropeDecode => NativeHandle.MropeDecode;
+
+        /// <summary>
+        /// Indicates whether images are supported
+        /// </summary>
         public bool SupportVision => NativeHandle.SupportVision;
+
+        /// <summary>
+        /// Indicates whether audio is supported
+        /// </summary>
         public bool SupportAudio => NativeHandle.SupportAudio;
+
+        /// <summary>
+        /// Sample rate for audio
+        /// </summary>
         public int AudioSampleRate => NativeHandle.AudioSampleRate;
-        public string CurrentMarker => NativeHandle.CurrentMarker;
+
+        //public string CurrentMarker => NativeHandle.CurrentMarker;
 
         private Dictionary<SafeMtmdInputChunksHandle /*work (chunks[1] is MEDIA), must be Disposed in the end of work*/,
             (TaskCompletionSource<LlamaEmbedding[]>/*return result task*/, LlamaEmbedding[] /* заготовка, частично заполненная*/ )> _visionWorks = new();
@@ -46,6 +60,13 @@ namespace Llama.csharp
                 _visionLoopTask = VisionEncodingLoop();
         }
 
+        /// <summary>
+        /// Initializes the MTMD model and its runtime environment (context)
+        /// </summary>
+        /// <param name="mmprojFile"></param>
+        /// <param name="llamaModel"></param>
+        /// <param name="params"></param>
+        /// <returns></returns>
         public static MtmdContext CreateFromFile(string mmprojFile, LLamaWeights llamaModel, IMtmdParams @params)
         {
             @params.ToMtmdContextParams(out var nativeParams);
@@ -53,18 +74,54 @@ namespace Llama.csharp
             return new MtmdContext(weights);
         }
 
-        // метод регистрации картинок, видео и звука на энкод, на вход спаны не битмапы
-
-        public async Task<(LLamaToken[] BOM, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)> EncodeImage(uint nx, uint ny, Memory<byte> image)
+        /// <summary>
+        /// Gets the specification from the initialized MTMD for LlamaExecutor
+        /// </summary>
+        /// <returns></returns>
+        public MtmdSpec GetSpecification()
         {
-            return (await EncodeImages([nx], [ny], [image]))[0];
+            return new MtmdSpec(NonCasualDecode, MropeDecode);
+        }
+
+        private (Memory<byte> rgb, int w, int h) ConvertToRgbTopDown(string path)
+        {
+            // Загружаем изображение в формате RGB24 (8 бит на канал, без альфы)
+            using SixLabors.ImageSharp.Image<Rgb24> image = SixLabors.ImageSharp.Image.Load<Rgb24>(path);
+
+            int width = image.Width;
+            int height = image.Height;
+
+            // Выделяем буфер нужного размера: ширина * высота * 3 байта
+            byte[] rgbData = new byte[width * height * 3];
+
+            // Копируем пиксельные данные в буфер.
+            // ImageSharp хранит пиксели построчно, начиная с верхней строки (top‑down),
+            // поэтому порядок соответствует требуемому.
+            image.CopyPixelDataTo(rgbData);
+
+            return (new Memory<byte>(rgbData), width, height);
+        }
+
+        #region ImageRegistration
+
+        public async Task<(string BOM, string EOM, LlamaEmbedding[] embeds)> EncodeImageFromPath(string filePath)
+        {
+            (Memory<byte> image, int nx, int ny) = ConvertToRgbTopDown(filePath);
+            (string BOM, string EOM, Task<LlamaEmbedding[]> embeds) = (await EncodeImages([(uint)nx], [(uint)ny], [image]))[0];
+            LlamaEmbedding[] calculatedEmbeds = await embeds;
+            return (BOM, EOM, calculatedEmbeds);
+        }
+        // метод регистрации картинок, видео и звука на энкод, на вход спаны не битмапы
+        public async Task<(string BOM, string EOM, LlamaEmbedding[] embeds)> EncodeImageFromRGB(uint nx, uint ny, Memory<byte> image)
+        {
+            (string BOM, string EOM, Task<LlamaEmbedding[]> embeds) = (await EncodeImages([nx], [ny], [image]))[0];
+            LlamaEmbedding[] calculatedEmbeds = await embeds;
+            return (BOM, EOM, calculatedEmbeds);
         }
 
         //для автоудаления битмапов
-        public async Task<(LLamaToken[] BOM /* Begin of media */, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)[]> EncodeImages(List<uint> nxs, List<uint> nys, List<Memory<byte>> images)
+        public async Task<(string BOM /* Begin of media */, string EOM, Task<LlamaEmbedding[]> embeds)[]> EncodeImages(List<uint> nxs, List<uint> nys, List<Memory<byte>> images)
         {
-            //Support Vision check here
-
             List<SafeMtmdBitMapHandle> bitmaps = new List<SafeMtmdBitMapHandle>();
 
             for (int i = 0; i < images.Count; i++)
@@ -72,8 +129,9 @@ namespace Llama.csharp
                 bitmaps.Add(SafeMtmdBitMapHandle.InitFromImage(nxs[i], nys[i], images[i].Span));
             }
 
-            (LLamaToken[] BOM /* Begin of media */, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)[] result = await RegisterVisionEncode(bitmaps);
+            (string BOM /* Begin Of Media */, string EOM, Task<LlamaEmbedding[]> embeds)[] result = await RegisterVisionEncode(bitmaps);
 
+            // dispose all bitmaps
             foreach (SafeMtmdBitMapHandle bitmap in bitmaps)
             {
                 bitmap.Dispose();
@@ -83,7 +141,7 @@ namespace Llama.csharp
         }
 
         // для видео и картинок, именно для них может быть испольован MROPE, позиции для MROPE получают здесь после токенизации, получая токены изображения и передавая их в функцию полученмия позиций
-        private async Task<(LLamaToken[] BOM /* Begin of media */, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)[]> RegisterVisionEncode(List<SafeMtmdBitMapHandle> bitmaps)
+        private async Task<(string BOM /* Begin of media */, string EOM, Task<LlamaEmbedding[]> embeds)[]> RegisterVisionEncode(List<SafeMtmdBitMapHandle> bitmaps)
         {
             //Support Vision check
             if (!SupportVision) throw new Exception("Model dont support Vision");
@@ -101,10 +159,9 @@ namespace Llama.csharp
 
             try
             {
+                var result = new (string BOM /* Begin of media */, string EOM, Task<LlamaEmbedding[]> embeds)[bitmaps.Count];
 
-                var result = new (LLamaToken[] BOM /* Begin of media */, LLamaToken[] EOM, Task<LlamaEmbedding[]> embeds)[bitmaps.Count];
-
-                //отправляем все задания под одной блокировкой для одновременного отправления в энкод
+                //отправляем все задания под одной блокировкой для ОДНОВРЕМЕННОГО отправления в энкод
                 await _visionEncodeSemaphore.WaitAsync(_mtmdContextLifeToken.Token);
                 try
                 {
@@ -153,10 +210,15 @@ namespace Llama.csharp
                                                           (int)tokensCount * sizeof(LLamaToken));
                                     }
 
+                                    string tokensToString = "";
+
+                                    foreach (LLamaToken token in tokens)
+                                        tokensToString += NativeHandle.ModelHandle.Vocab.LLamaTokenToString(token, true);
+
                                     if (j == 0)
-                                        result[i].BOM = tokens;
+                                        result[i].BOM = tokensToString;
                                     else
-                                        result[i].EOM = tokens;
+                                        result[i].EOM = tokensToString;
 
                                 }
                                 else if (type == MtmdInputChunkType.MTMD_INPUT_CHUNK_TYPE_IMAGE || type == MtmdInputChunkType.MTMD_INPUT_CHUNK_TYPE_AUDIO)
@@ -184,7 +246,7 @@ namespace Llama.csharp
                                         }
                                         else
                                         {
-                                        futureResult[frCounter] = new LlamaEmbedding(Memory<float>.Empty, LlamaEmbeddingType.Image);
+                                            futureResult[frCounter] = new LlamaEmbedding(Memory<float>.Empty, LlamaEmbeddingType.Image);
                                         }
                                     }
 
@@ -207,6 +269,7 @@ namespace Llama.csharp
             }
             catch
             {
+                // очистка при ошибке
                 foreach (var o in outputs)
                 {
                     if (o != null && !o.IsClosed && !_visionWorks.ContainsKey(o))
@@ -215,6 +278,8 @@ namespace Llama.csharp
                 throw;
             }
         }
+
+        #endregion
 
         private async Task VisionEncodingLoop()
         {
@@ -243,7 +308,7 @@ namespace Llama.csharp
 
         private async Task VisionEncodeInternal()
         {
-            // собираем батч из того что доступно в works 
+            // собираем батч из того что доступно в works и энкодим
             using (SafeMtmdBatchHandle mtmdBatch = SafeMtmdBatchHandle.Init(this.NativeHandle))
             {
                 List<SafeMtmdInputChunksHandle> acceptedChunks = new();

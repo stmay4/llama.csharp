@@ -2,13 +2,18 @@
 using Llama.csharp.Extensions;
 using Llama.csharp.Interfaces;
 using Llama.csharp.Native;
+using Newtonsoft.Json.Linq;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using System;
-using System.Text.Encodings;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using Xunit.Abstractions;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Encodings;
+using System.Threading.Channels;
+using Xunit.Abstractions;
 
 namespace Llama.csharp.IntegrationTest
 {
@@ -338,33 +343,15 @@ namespace Llama.csharp.IntegrationTest
                 MtmdContext ctx = MtmdContext.CreateFromFile(_mmprojPath, model, mtmdParams);
 
                 string imgPath = @"C:\Users\stasm\Pictures\Screenshots\Снимок экрана 2026-06-22 014446.png";
-                (Memory<byte> bmpData, int width, int height) img = ConvertToBmp(imgPath);
-                var result = await ctx.EncodeImage((uint)img.width, (uint)img.height, img.bmpData);
+                var result = await ctx.EncodeImageFromPath(imgPath);
 
-                LlamaEmbedding[] imgEmdeds = await result.embeds;
-                foreach (var emded in imgEmdeds)
+                foreach (var emded in result.embeds)
                 {
                     _output.WriteLine(emded.Data.ToString());
                 }
 
-                foreach (LLamaToken token in result.BOM)
-                    _output.WriteLine(model.Vocab.LLamaTokenToString(token, true));
-                foreach (LLamaToken token in result.EOM)
-                    _output.WriteLine(model.Vocab.LLamaTokenToString(token, true));
-
-                Encoding encoding = Encoding.UTF8;
-                foreach (LLamaToken token in model.Vocab.Tokenize("<|vision_start|>", false, true, encoding))
-                {
-                    _output.WriteLine(token.ToString());
-                }
-                foreach (LLamaToken token in model.Vocab.Tokenize("<|vision_start|> ", false, true, encoding))
-                {
-                    _output.WriteLine(token.ToString());
-                }
-                foreach (LLamaToken token in model.Vocab.Tokenize(" <|vision_start|> ", false, true, encoding))
-                {
-                    _output.WriteLine(token.ToString());
-                }
+                _output.WriteLine(result.BOM);
+                _output.WriteLine(result.EOM);
 
                 ctx.Dispose();
             };
@@ -426,23 +413,168 @@ namespace Llama.csharp.IntegrationTest
             model.Dispose();
         }
 
-        private (Memory<byte> bmpData, int width, int height) ConvertToBmp(string imgPath)
+        [Fact]
+        public async Task MtmdImage_Qwen_StandartTemplate_DecodeByLLM_Valid()
         {
-            // Загружаем исходное изображение
-            using var original = new Bitmap(imgPath);
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend),
+                Path.Combine(_baseDllPath, "mtmd.dll"),
+            };
 
-            // Создаём новое 24‑битное RGB‑изображение тех же размеров
-            using var bmp = new Bitmap(original.Width, original.Height, PixelFormat.Format24bppRgb);
-            using var g = Graphics.FromImage(bmp);
-            // Рендерим исходник в новое изображение (сохраняя пропорции)
-            g.DrawImage(original, 0, 0, original.Width, original.Height);
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
 
-            // Сохраняем как BMP в поток памяти
-            using var ms = new MemoryStream();
-            bmp.Save(ms, ImageFormat.Bmp);
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]],
+                                requiredFiles[4]);
+            #endregion
 
-            // Возвращаем байты и размеры
-            return (ms.ToArray().AsMemory(), bmp.Width, bmp.Height);
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+            };
+
+            IModelParams modelParams = new ModelParams(_modelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_mmprojPath, model, mtmdParams);
+
+                string imgPath = @"C:\Users\stasm\Pictures\Screenshots\Снимок экрана 2026-06-22 014446.png";
+                var result = await ctx.EncodeImageFromPath(imgPath);
+
+                ContextParams ctxParams = new ContextParams() { ContextSize = 8000 };
+
+                LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
+
+                LLamaSeqId seq1 = await executor.CreateSequence();
+
+                await executor.ProcessPrompt(seq1, " <|im_start|>system\n you are a helpfull assistant\n<|im_end|>" +
+                    "\n<|im_start|>user\n " + result.BOM);
+                Dictionary<LLamaSeqId, Task> mtmdprefill = await executor.ProcessMtmdEmbeds([seq1], [result.embeds]);
+                await mtmdprefill[seq1];
+                await executor.ProcessPrompt(seq1, result.EOM + "What displayed on image? \n<|im_end|>\n<|im_start|>assistant\n");
+                
+                InferenceParams inferenceParams = new InferenceParams()
+                {
+                    MaxTokens = 200,
+                    AutoStopFromEOG = true,
+                    DecodeSpecialTokens = true,
+                    AntiPrompts = []
+                };
+
+                Channel<string> ch1 = await executor.Generate(seq1, inferenceParams);
+
+                string genText = "";
+                await foreach (var text in ch1.Reader.ReadAllAsync())
+                {
+                    genText += text;
+                }
+
+                _output.WriteLine(genText);
+
+                ctx.Dispose();
+                executor.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task MtmdImage_Qwen_RandomTemplate_DecodeByLLM_Valid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend),
+                Path.Combine(_baseDllPath, "mtmd.dll"),
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]],
+                                requiredFiles[4]);
+            #endregion
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+            };
+
+            IModelParams modelParams = new ModelParams(_modelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_mmprojPath, model, mtmdParams);
+
+                string imgPath = @"C:\Users\stasm\Pictures\Screenshots\Снимок экрана 2026-06-22 014446.png";
+                var result = await ctx.EncodeImageFromPath(imgPath);
+
+                ContextParams ctxParams = new ContextParams() { ContextSize = 8000 };
+
+                LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
+
+                LLamaSeqId seq1 = await executor.CreateSequence();
+
+                await executor.ProcessPrompt(seq1, "<system> you are a helpfull assistant </system>" +
+                    "\n<user>\n What displayed on image? " + result.BOM);
+                Dictionary<LLamaSeqId, Task> mtmdprefill = await executor.ProcessMtmdEmbeds([seq1], [result.embeds]);
+                await mtmdprefill[seq1];
+                await executor.ProcessPrompt(seq1, result.EOM + "\n</user>\n<assistant>\n");
+
+                InferenceParams inferenceParams = new InferenceParams()
+                {
+                    MaxTokens = 200,
+                    AutoStopFromEOG = true,
+                    DecodeSpecialTokens = true,
+                    AntiPrompts = []
+                };
+
+                Channel<string> ch1 = await executor.Generate(seq1, inferenceParams);
+
+                string genText = "";
+                await foreach (var text in ch1.Reader.ReadAllAsync())
+                {
+                    genText += text;
+                }
+
+                _output.WriteLine(genText);
+
+                ctx.Dispose();
+                executor.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
         }
     }
 }

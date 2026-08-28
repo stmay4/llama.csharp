@@ -1,4 +1,5 @@
-﻿using Llama.csharp.Interfaces;
+﻿using Llama.csharp.Extensions;
+using Llama.csharp.Interfaces;
 using Llama.csharp.Native;
 using System;
 using System.Collections.Generic;
@@ -18,6 +19,9 @@ namespace Llama.csharp
         /// Tokens that should be decoded by the model
         /// </summary>
         public List<LLamaToken> TokensToPrefill = new();
+
+        // в одном пакете для mtmd один массив эмбеддингов (так как между ними все равно нужны токены)
+        public (LlamaEmbedding[]? embeds, int decodedCount) MtmdEmbedsToPrefill = (null,0);
 
         /// <summary>
         /// Number of physical tokens in the context that belong to this sequence
@@ -42,8 +46,29 @@ namespace Llama.csharp
 
         public readonly StreamingTokenDecoder Decoder = new StreamingTokenDecoder(context);
 
+        #region OnDeleteFields
+
         public bool EndDeleted { get; set; } = false;
         public LLamaToken DeletedNextToken { get; set; }
+
+        #endregion
+
+        internal void AddMtmdEmbedsForPrefill(LlamaEmbedding[] embeds)
+        {
+            MtmdEmbedsToPrefill = (embeds,0);
+            RealTokensCount += embeds.Length;
+        }
+
+        internal void SetStatus(SeqState state)
+        {
+            InferState.State = state;
+        }
+
+        internal void AddSampledTokenForPrefill(LLamaToken llamaToken)
+        {
+            TokensToPrefill.Add(llamaToken); // Add the newly sampled token to the container for model decoding
+            RealTokensCount += TokensToPrefill.Count; // Add the sampled token to the real token count
+        }
 
         internal void ClearState()
         {
@@ -94,6 +119,8 @@ namespace Llama.csharp
             EndDeleted = true;
             DeletedNextToken = DecodedTokens[nextDecodedTokenPos];
 
+            // ОГРАНИЧИТЬ УДАЛЕНИЕ ДЛЯ УЧАСТКОВ С КАРТИНКАМИ?
+
             DecodedTokens = DecodedTokens.GetRange(0, nextDecodedTokenPos);
         }
     }
@@ -124,6 +151,7 @@ namespace Llama.csharp
     {
         None,
         Generation,
-        Prefill
+        Prefill,
+        PrefillMtmd
     }
 }

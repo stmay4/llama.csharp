@@ -147,11 +147,13 @@ namespace Llama.csharp
         /// <summary>
         /// Creates an executor for multi-sequences operations (batch processing and more)
         /// </summary>
-        /// <param name="params"> Configuration parameters </param>
-        public LlamaExecutor CreateExecutor(IContextParams @params)
+        /// <param name="params"> Language model context parameters </param>
+        /// <param name="mtmdSpec"> MTMD parameters, if any </param>
+        /// <returns></returns>
+        public LlamaExecutor CreateExecutor(IContextParams @params, MtmdSpec? mtmdSpec = null)
         {
             LLamaContext context = new LLamaContext(this, @params);
-            return new LlamaExecutor(context);
+            return new LlamaExecutor(context, mtmdSpec);
         }
 
         /// <summary>

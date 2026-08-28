@@ -6,8 +6,9 @@ using System.Threading.Tasks;
 
 namespace Llama.csharp.Native
 {
-    // инициализируется пустым, потом передается в токенизацию, там заполняется и обратно уже вовзращается с чанками текстовыми и медиа, текстовые окружают медиа и представляют собой открывающую и закрывающие токены текстовые
-    // проверить при free одного из чанков, размер данного листа чанков уменьшится или нет?
+    // Initialized as empty, then passed to tokenization where it gets populated
+    // and returned with text and media chunks. Text chunks surround media chunks
+    // and represent opening and closing text tokens.
     /// <summary>
     /// mtmd_input_chunks
     ///
@@ -23,16 +24,29 @@ namespace Llama.csharp.Native
             return true;
         }
 
+        /// <summary>
+        /// Initializes an empty container that gets populated with chunks on the C++ side
+        /// </summary>
+        /// <returns></returns>
         internal static SafeMtmdInputChunksHandle Init()
         {
             return LlamaCpp.Mtmd_InputChunksInit();
         }
 
+        /// <summary>
+        /// Returns the number of chunks in the container populated on the C++ side
+        /// </summary>
+        /// <returns></returns>
         internal int GetChunkCount()
         {
             return (int)LlamaCpp.Mtmd_InputChunksSize(this);
         }
 
+        /// <summary>
+        /// Returns a reference to a chunk
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
         internal unsafe MtmdInputChunkPtr* GetChunk(int id)
         {
             return LlamaCpp.Mtmd_InputChunksGet(this, (nuint)id);

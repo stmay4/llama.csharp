@@ -17,7 +17,7 @@ namespace Llama.csharp.Extensions
             result.use_gpu = @params.UseGpu;
             result.print_timings = @params.PrintTimings;
             result.n_threads = @params.Threads ?? result.n_threads;
-            //result.media_marker = @params.MediaMarker ?? result.media_marker;
+            //result.media_marker = @params.MediaMarker ?? result.media_marker; // Not used, as the marker is handled internally by the library
             result.flash_attn_type = @params.FlashAttention ?? result.flash_attn_type;
             result.warmup = @params.Warmup ?? result.warmup;
             result.image_min_tokens = @params.ImageMinTokens ?? result.image_min_tokens;

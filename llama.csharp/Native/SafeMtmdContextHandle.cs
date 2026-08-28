@@ -29,13 +29,13 @@ namespace Llama.csharp.Native
 
         public int AudioSampleRate => LlamaCpp.Mtmd_GetAudioSampleRate(this);
 
-        public string CurrentMarker => LlamaCpp.Mtmd_GetMarker(this);
+        public string CurrentMarker => LlamaCpp.Mtmd_GetMarker(this) ?? "";
 
 
         /// <summary>
         /// Dimension of embedding vectors
         /// </summary>
-        public int EmbeddingSize => ThrowIfDisposed().EmbeddingSize;
+        public int InputEmbeddingSize => ThrowIfDisposed().InputEmbeddingSize;
 
         /// <summary>
         /// Get the model which this context is using
@@ -67,7 +67,16 @@ namespace Llama.csharp.Native
             return true;
         }
 
-        public static SafeMtmdContextHandle LoadFromFile(string mmprojPath, SafeLlamaModelHandle llamaModel, MtmdContextParams nativeParams) //mtmdcontextparams
+        /// <summary>
+        /// Loads the MTMD model from a file and initializes it
+        /// </summary>
+        /// <param name="mmprojPath"></param>
+        /// <param name="llamaModel"></param>
+        /// <param name="nativeParams"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        /// <exception cref="LoadWeightsFailedException"></exception>
+        internal static SafeMtmdContextHandle LoadFromFile(string mmprojPath, SafeLlamaModelHandle llamaModel, MtmdContextParams nativeParams) //mtmdcontextparams
         {
             // Try to open the mmproj file, this will check:
             // - File exists (automatically throws FileNotFoundException)
@@ -109,9 +118,6 @@ namespace Llama.csharp.Native
         internal void Tokenize(SafeMtmdInputChunksHandle outputChunks, List<SafeMtmdBitMapHandle> bitmaps)
         {
             LlamaCpp.Mtmd_Tokenize(this, outputChunks, bitmaps);
-        } 
-
-        
-            
+        }   
     }
 }

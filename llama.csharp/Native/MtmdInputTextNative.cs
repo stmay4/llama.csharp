@@ -8,6 +8,8 @@ namespace Llama.csharp.Native
     /// bool add_special;
     /// bool parse_special;
     /// };
+    /// 
+    /// Used for retrieving chunks; image markers are inserted here by the code. Not used by library users.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     internal unsafe struct MtmdInputTextNative

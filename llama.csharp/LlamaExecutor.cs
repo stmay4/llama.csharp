@@ -40,6 +40,12 @@ namespace Llama.csharp
         private Dictionary<Sequence, TaskCompletionSource> _prefillSeqs = new Dictionary<Sequence, TaskCompletionSource>();
 
         /// <summary>
+        /// Container for sequences in the mtmd prefill phase
+        /// Data modification and retrieval only under _seqStateSemaphore
+        /// </summary>
+        private Dictionary<Sequence, TaskCompletionSource> _mtmdPrefillSeqs = new Dictionary<Sequence, TaskCompletionSource>();
+
+        /// <summary>
         /// Counter for sequence IDs to assign unique identifiers
         /// Data modification and retrieval only under _seqStateSemaphore
         /// </summary>
@@ -61,11 +67,57 @@ namespace Llama.csharp
         /// </summary>
         private readonly ManualResetEventSlim _workSignal = new ManualResetEventSlim(false);
 
-        internal LlamaExecutor(LLamaContext context)
+
+        /// <summary>
+        /// Indicates whether MTMD code blocks are used.
+        /// </summary>
+        private bool _isMultimodal = false;
+
+        /// <summary>
+        /// Indicates whether noncausal attention is used to decode the MTMD embeddings
+        /// </summary>
+        private bool _isMtmdNonCausal;
+
+        /// <summary>
+        /// Indicates whether MROPE positions are used for decoding the MTMD embeddings
+        /// </summary>
+        private bool _isMtmdMrope;
+
+
+        internal LlamaExecutor(LLamaContext context, MtmdSpec? mtmdSpec = null)
         {
             Context = context;
             _batchComposer = new SimpleBatchComposer();
+
+            if (mtmdSpec.HasValue)
+            {
+                MtmdSpec spec = mtmdSpec.Value;
+                _isMultimodal = true;
+                _isMtmdNonCausal = spec.UseNonCausal;
+                _isMtmdMrope = spec.UseMrope;
+            }
+
             _ = DecodingLoop(); //start endless decode loop
+        }
+
+        /// <summary>
+        /// Initializes MTMD after construction if it could not be initialized at creation time.
+        /// </summary>
+        /// <param name="mtmdSpec"></param>
+        /// <returns></returns>
+        public async Task InitializeMtmdAsync(MtmdSpec mtmdSpec)
+        {
+            await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token);
+            try
+            {
+                _isMultimodal = true;
+                _isMtmdNonCausal = mtmdSpec.UseNonCausal;
+                _isMtmdMrope = mtmdSpec.UseMrope;
+            }
+            finally
+            {
+                _seqStateSemaphore.Release();
+            }
         }
 
         /// <summary>
@@ -273,6 +325,72 @@ namespace Llama.csharp
             return completions;
         }
 
+        // для одной последовательности один массив эмбеддингов (так как между ними все равно нужны токены) либо картинка, либо видео (для квен), либо аудио одно
+        public async Task<Dictionary<LLamaSeqId, Task>> ProcessMtmdEmbeds(List<LLamaSeqId> seqIds, List<LlamaEmbedding[]> embeds)
+        {
+            if (_isMultimodal)
+            {
+                // Simple argument checks, not under semaphore synchronization
+                #region Checks 
+                if (seqIds == null || embeds == null) throw new ArgumentNullException();
+                if (seqIds.Count == 0 || embeds.Count == 0) throw new ArgumentException("Count is 0");
+                if (embeds.Count < seqIds.Count) throw new Exception("There are few embeds");
+                #endregion
+
+                Dictionary<LLamaSeqId, Task> completions = new Dictionary<LLamaSeqId, Task>();
+
+                await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); //semaphore synchronization
+                try
+                {
+                    for (int i = 0; i < seqIds.Count; i++)
+                    {
+                        LLamaSeqId seqId = seqIds[i];
+                        LlamaEmbedding[] embedArray = embeds[i];
+                        // Parameter checks inside the lock because resources are shared
+                        if (!_sequences.TryGetValue(seqId, out var seq)) throw new IndexOutOfRangeException($"There is not {seqId} sequence");
+                        if (seq.InferState.State != SeqState.None) throw new Exception($"{seqId} sequence using in another place: {seq.InferState.State}");
+                        if (embedArray.Length != 0)
+                        {
+                            TaskCompletionSource tcs = new TaskCompletionSource();
+                            completions[seqId] = tcs.Task; // set prefill Task in completions for return from method
+
+                            // Check for available space in the context cache
+                            if (isOutOfContext(embedArray.Length))
+                            {
+                                tcs.SetException(new ContextFullException()); // Set an error in the task if the context is full
+                            }
+                            else
+                            {
+                                // Filling the MtmdEmbedsToPrefill sequence
+                                seq.AddMtmdEmbedsForPrefill(embedArray);
+                                seq.SetStatus(SeqState.PrefillMtmd);
+
+                                _workSignal.Set(); // Setting the work availability signal; the decode loop will wait for the exit from this method's lock
+
+                                _mtmdPrefillSeqs[seq] = tcs; // Adding to _mtmdPrefillSeqs for processing in the decode loop
+                            }
+                        }
+                        else // If there's nothing to process, return a completed task
+                        {
+                            TaskCompletionSource tcs = new TaskCompletionSource();
+                            completions[seqId] = tcs.Task;
+                            tcs.SetResult();
+                        }
+                    }
+                }
+                finally
+                {
+                    _seqStateSemaphore.Release();
+                }
+
+                return completions;
+            }
+            else
+            {
+                throw new Exception("Mtmd was not initialized");
+            }
+        }
+
         /// <summary>
         /// Overloaded method for generating one sequence
         /// </summary>
@@ -471,7 +589,7 @@ namespace Llama.csharp
         /// <param name="prefillSeqs">Sequences currently in the prefill stage.</param>
         /// <returns>A task representing the asynchronous decode operation.</returns>
         /// <exception cref="LLamaDecodeError"></exception>
-        private async Task decodeInternal(List<Sequence> inferSeqs, List<Sequence> prefillSeqs)
+        private async Task DecodeInternal(List<Sequence> inferSeqs, List<Sequence> prefillSeqs)
         {
             #region SamplingInferenceSeqs
             List<Sequence> seqsToRemove = new List<Sequence>();
@@ -503,15 +621,14 @@ namespace Llama.csharp
                 }// Storing all logits is too expensive, so we accept that the first token will be repeated
                 else throw new Exception($"sequence {seq.Id} LastLogits is empty. Generation impossible");
 
+                // Добавляем отсемплированный токен в учет последовательности
                 if (isOutOfContext(1)) // Since there is only one LLamaToken; for MTP change in the future
                 {
                     seqsToRemove.Add(seq); // Remove from sequences for batch assembly because there is no space in the context
                 }
                 else
                 {
-                    seq.TokensToPrefill.Add(llamaToken); // Add the newly sampled token to the container for model decoding
-
-                    seq.RealTokensCount += seq.TokensToPrefill.Count(); // Add the sampled token to the real token count
+                    seq.AddSampledTokenForPrefill(llamaToken);
                 }
             }
             foreach (Sequence seq in seqsToRemove)
@@ -523,27 +640,25 @@ namespace Llama.csharp
             #endregion
 
             // Compose Batch
-            LLamaBatch multiSeqBatch = _batchComposer.CreateBatch(inferSeqs, prefillSeqs, Context.BatchSize);
+            (LLamaBatch multiSeqBatch,
+             IReadOnlyDictionary<int, int> inferedSeqsListIds, // id в локальном списке inferSeqs
+             IReadOnlyDictionary<int, (int count, int pos)> prefilledSeqsTokenCount) = _batchComposer.CreateBatch(inferSeqs, prefillSeqs, Context.BatchSize);
 
             // Decode
             DecodeResult res = await Context.DecodeAsync(multiSeqBatch); // A single batch consists of inference tokens at the beginning and prefill tokens at the end
 
-            IReadOnlyDictionary<int, int> decodedSeqsListIds = _batchComposer.GetInferSeqsListIdsAndPos();
-            IReadOnlyDictionary<int, (int count, int pos)> prefilledSeqsTokenCount = _batchComposer.GetPrefillSeqsTokenCount();
-
             // Error handling
             if (res != DecodeResult.Ok)
             {
-                foreach (var item in decodedSeqsListIds)
-                {
-                    //ALL BAD
-                }
+
+                //ALL BAD
+                //сбросить состояние seq, учесть отсутствие логитов в данном случае, сделать возможным сброс как с enddeleted для случая без логитов с заново обработкой конца
 
                 throw new LLamaDecodeError(res);
             }
 
             // Update Data
-            foreach (var item in decodedSeqsListIds) // Inference sequences that participated in the batch
+            foreach (var item in inferedSeqsListIds) // Inference sequences that participated in the batch
             {
                 inferSeqs[item.Key].NextDecodedTokenPos++;
                 inferSeqs[item.Key].LastLogits = LLamaTokenDataArray.Create(Context.NativeHandle.GetLogitsIth(item.Value));
@@ -565,6 +680,91 @@ namespace Llama.csharp
         }
 
         /// <summary>
+        /// Post-processes the sequences that are in the prefill stage.
+        /// </summary>
+        private void postProcessMtmdPrefill()
+        {
+            List<Sequence> seqsToRemove = new List<Sequence>();
+            foreach (var seq in _mtmdPrefillSeqs.Keys)
+            {
+                // If there are no more embeds to prefill
+                if (seq.MtmdEmbedsToPrefill.embeds == null)
+                {
+                    seqsToRemove.Add(seq);
+                }
+            }
+            // Remove the ones that have finished execution from the container
+            foreach (Sequence seq in seqsToRemove)
+            {
+                endMtmdPrefill(seq);
+            }
+        }
+
+        /// <summary>
+        /// Releases the sequence from prefill and signals completion.
+        /// </summary>
+        /// <param name="prefillSeq">sequence</param>
+        private void endMtmdPrefill(Sequence prefillSeq)
+        {
+            prefillSeq.InferState.State = SeqState.None;
+            _mtmdPrefillSeqs[prefillSeq].SetResult();
+
+            _mtmdPrefillSeqs.Remove(prefillSeq);
+        }
+
+        private async Task MtmdDecodeInternal(List<Sequence> prefillSeqs)
+        {
+            try
+            {
+                // включаем полное внимание, если надо
+                if (_isMtmdNonCausal)
+                {
+                    Context.NativeHandle.SetCausalAttention(false);
+                }
+
+                (LLamaBatchEmbeddings multiSeqBatch,
+                    IReadOnlyDictionary<int, (int count, int pos)> prefilledSeqsTokenCount) =
+                    _batchComposer.CreateMtmdBatch(prefillSeqs, Context.InputEmbeddingSize, _isMtmdMrope, Context.BatchSize);
+
+                // Decode
+                DecodeResult res = await Context.DecodeAsync(multiSeqBatch);
+
+                // Error handling
+                if (res != DecodeResult.Ok)
+                {
+                    //ALL BAD
+
+                    throw new LLamaDecodeError(res);
+                }
+
+                foreach (var item in prefilledSeqsTokenCount) // Prefill sequences that participated in the batch
+                {
+                    prefillSeqs[item.Key].MtmdEmbedsToPrefill.decodedCount += item.Value.count;
+
+                    if (prefillSeqs[item.Key].MtmdEmbedsToPrefill.embeds?.Length == prefillSeqs[item.Key].MtmdEmbedsToPrefill.decodedCount) // Have all MtmdEmbedsToPrefill been decoded?
+                    {
+                        var placeholder = MtmdTokenExtensions.CreateImagePlaceholder();
+                        for (int i = 0; i < prefillSeqs[item.Key].MtmdEmbedsToPrefill.embeds?.Length; i++)
+                        {
+                            prefillSeqs[item.Key].DecodedTokens.Add(placeholder);
+                        }
+
+                        prefillSeqs[item.Key].NextDecodedTokenPos += (prefillSeqs[item.Key].MtmdEmbedsToPrefill.embeds?.Length).Value;
+
+                        prefillSeqs[item.Key].LastLogits = LLamaTokenDataArray.Create(Context.NativeHandle.GetLogitsIth(item.Value.pos));
+
+                        prefillSeqs[item.Key].MtmdEmbedsToPrefill = (null, 0);
+                    }
+                }
+            }
+            finally
+            {
+                // возвращаем причинное внимание
+                Context.NativeHandle.SetCausalAttention(true);
+            }
+        }
+
+        /// <summary>
         /// Infinite loop that processes batches: each iteration generates one token for sequences that need it
         /// and prefills as many tokens as fit into the batch, up to the batch size.
         /// </summary>
@@ -578,16 +778,41 @@ namespace Llama.csharp
                 await _seqStateSemaphore.WaitAsync(_executorLifeToken.Token); // sync Lock 
                 try
                 {
+                    bool hasTextWork = true;
+                    bool hasMtmdWork = true;
+
                     if (_inferenceSeqs.Count == 0 && _prefillSeqs.Count == 0) // Nothing to do
                     {
-                        _workSignal.Reset(); // Reset the work signal
+                        hasTextWork = false; // Reset the work signal
                     }
                     else
                     {
-                        await decodeInternal(_inferenceSeqs.Keys.ToList(), _prefillSeqs.Keys.ToList()); // Convert to lists for easier indexing
+                        // общий декод для инференса и префилла текстовых
+                        await DecodeInternal(_inferenceSeqs.Keys.ToList(), _prefillSeqs.Keys.ToList()); // Convert to lists for easier indexing
 
                         await postProcessInfer();
                         postProcessPrefill();
+                    }
+
+                    // декод мультимодального префилла
+                    if (_isMultimodal)
+                    {
+                        if (_mtmdPrefillSeqs.Count == 0)
+                        {
+                            hasMtmdWork = false;
+                        }
+                        else
+                        {
+                            await MtmdDecodeInternal(_mtmdPrefillSeqs.Keys.ToList());
+
+                            postProcessMtmdPrefill();
+                        }
+                    }
+                    else hasMtmdWork = false;
+
+                    if (!hasTextWork && !hasMtmdWork)
+                    {
+                        _workSignal.Reset();
                     }
                 }
                 finally
@@ -1046,41 +1271,24 @@ namespace Llama.csharp
             /// <param name="prefillSeqs">Sequences in the prefill stage.</param>
             /// <param name="batchSize">Maximum number of tokens allowed in the batch.</param>
             /// <returns>A new <see cref="LLamaBatch"/> containing the selected tokens.</returns>
-            public LLamaBatch CreateBatch(IReadOnlyList<Sequence> inferSeqs, IReadOnlyList<Sequence> prefillSeqs, uint batchSize);
+            public (LLamaBatch batch, Dictionary<int, int> inferedSeqs, Dictionary<int, (int count, int pos)> prefilledSeqs) CreateBatch(IReadOnlyList<Sequence> inferSeqs, IReadOnlyList<Sequence> prefillSeqs, uint batchSize);
 
-            /// <summary>
-            /// Returns the indices (in the <paramref name="inferSeqs"/> list) of the inference sequences
-            /// that participated in the last composed batch, along with their corresponding logit positions.
-            /// </summary>
-            /// <returns>
-            /// A dictionary where the key is the index into the original <paramref name="inferSeqs"/> list,
-            /// and the value is the logit position assigned to that sequence in the batch.
-            /// </returns>
-            public IReadOnlyDictionary<int, int> GetInferSeqsListIdsAndPos();
-
-            /// <summary>
-            /// Returns the number of prefill tokens that were processed for each prefill sequence in the last batch,
-            /// together with the position of the last token of that sequence in the logits.
-            /// </summary>
-            /// <returns>
-            /// A dictionary where the key is the index into the original <paramref name="prefillSeqs"/> list,
-            /// and the value is a tuple containing <c>count</c> (number of tokens processed) and
-            /// <c>pos</c> (logit position of the last token).
-            /// </returns>
-            public IReadOnlyDictionary<int, (int count, int pos)> GetPrefillSeqsTokenCount();
+            public (LLamaBatchEmbeddings batch, Dictionary<int, (int count, int pos)> mtmdPrefilledSeqs) CreateMtmdBatch(IReadOnlyList<Sequence> mtmdPrefillSeqs, int embedsDimension, bool useMrope, uint batchSize);
         }
         private class SimpleBatchComposer : IBatchComposer
         {
+            // сохраненные id заполнения батча
             private int _nextInferSeqBatchId = 0;
             private int _nextPrefillSeqBatchId = 0;
-            private Dictionary<int, int> _lastInferSeqs = new Dictionary<int, int>();
-            private Dictionary<int, (int count, int pos)> _lastPrefilledCount = new Dictionary<int, (int count, int pos)>();
+            private int _nextMtmdPrefillBatchId = 0;
 
-            public LLamaBatch CreateBatch(IReadOnlyList<Sequence> inferSeqs, IReadOnlyList<Sequence> prefillSeqs, uint batchSize)
+            public (LLamaBatch batch, Dictionary<int, int> inferedSeqs, Dictionary<int, (int count, int pos)> prefilledSeqs) CreateBatch(
+                IReadOnlyList<Sequence> inferSeqs,
+                IReadOnlyList<Sequence> prefillSeqs,
+                uint batchSize)
             {
-                // Clear
-                _lastInferSeqs.Clear();
-                _lastPrefilledCount.Clear();
+                Dictionary<int, int> inferedSeqs = new Dictionary<int, int>();
+                Dictionary<int, (int count, int pos)> prefilledSeqs = new Dictionary<int, (int count, int pos)>();
 
                 LLamaBatch batch = new LLamaBatch(); // New batch
 
@@ -1095,7 +1303,7 @@ namespace Llama.csharp
                         currentInferSeqId = currentInferSeqId % inferSeqs.Count;
 
                         batch.Add(inferSeqs[currentInferSeqId].TokensToPrefill.Last(), inferSeqs[currentInferSeqId].NextDecodedTokenPos, inferSeqs[currentInferSeqId].Id, true);
-                        _lastInferSeqs[currentInferSeqId] = batchPos;
+                        inferedSeqs[currentInferSeqId] = batchPos;
                         batchPos++; // Increment batch position
                     }
                     else
@@ -1120,19 +1328,19 @@ namespace Llama.csharp
                 while (batchPos < batchSize && TokenAdded)
                 {
                     TokenAdded = false;
-                    for (int i = 0; i < prefillSeqs.Count; i++)
+                    for (int i = 0; i < prefillSeqs.Count; i++) // проходим по всем последовательностям в списке на заполнение
                     {
-                        if (batchPos < batchSize)
+                        if (batchPos < batchSize) //если места еще есть
                         {
                             currentPrefillSeqId = _nextPrefillSeqBatchId + i;
-                            currentPrefillSeqId = currentPrefillSeqId % prefillSeqs.Count;
+                            currentPrefillSeqId = currentPrefillSeqId % prefillSeqs.Count; //расчет текущей последовательности для рассмотрения с учетом сдвига от прошлых обработок _nextPrefillSeqBatchId
 
-                            if (!_lastPrefilledCount.ContainsKey(currentPrefillSeqId)) _lastPrefilledCount[currentPrefillSeqId] = (0, -1); // Initialize if the sequence has not been processed yet
+                            if (!prefilledSeqs.ContainsKey(currentPrefillSeqId)) prefilledSeqs[currentPrefillSeqId] = (0, -1); // Initialize if the sequence has not been processed yet
 
-                            if (_lastPrefilledCount[currentPrefillSeqId].count < prefillSeqs[currentPrefillSeqId].TokensToPrefill.Count)
+                            if (prefilledSeqs[currentPrefillSeqId].count < prefillSeqs[currentPrefillSeqId].TokensToPrefill.Count)
                             {
 
-                                int count = _lastPrefilledCount[currentPrefillSeqId].count; // count of added to batch in this loop
+                                int count = prefilledSeqs[currentPrefillSeqId].count; // count of added to batch in this loop
                                 int pos = prefillSeqs[currentPrefillSeqId].NextDecodedTokenPos + count; // current pos in sequence of token for adding
 
                                 batch.Add(
@@ -1142,7 +1350,7 @@ namespace Llama.csharp
                                     pos == currentRequiredLogitsIds[currentPrefillSeqId]
                                     ); //add token to batch
                                 TokenAdded = true;
-                                _lastPrefilledCount[currentPrefillSeqId] = (count + 1, batchPos); // Increment the number of tokens added to the batch and store the batch position (used later when PrefillCount reaches zero)
+                                prefilledSeqs[currentPrefillSeqId] = (count + 1, batchPos); // Increment the number of tokens added to the batch and store the batch position (used later when PrefillCount reaches zero)
 
                                 batchPos++; // Increment batch position
                             }
@@ -1155,18 +1363,145 @@ namespace Llama.csharp
                     }
                 }
 
-
-                return batch;
+                return (batch, inferedSeqs, prefilledSeqs);
             }
 
-            public IReadOnlyDictionary<int, int> GetInferSeqsListIdsAndPos()
+            public (LLamaBatchEmbeddings batch, Dictionary<int, (int count, int pos)> mtmdPrefilledSeqs) CreateMtmdBatch(IReadOnlyList<Sequence> mtmdPrefillSeqs, int embedsDimension, bool useMrope, uint batchSize)
             {
-                return _lastInferSeqs;
-            }
+                Dictionary<int, (int count, int pos)> mtmdPrefilledSeqs = new Dictionary<int, (int count, int pos)>();
 
-            public IReadOnlyDictionary<int, (int count, int pos)> GetPrefillSeqsTokenCount()
-            {
-                return _lastPrefilledCount;
+                int nPosPerEmbedding = 1;
+                if (useMrope)
+                {
+                    nPosPerEmbedding = 4;
+                }
+
+                // 1. Рассчитываем абсолютные позиции в последовательностях, на которых ОБЯЗАТЕЛЬНО нужны логиты 
+                // (это последний эмбеддинг текущего чанка изображения для каждой последовательности)
+                Dictionary<int, int> currentRequiredLogitsIds = new Dictionary<int, int>();
+                for (int k = 0; k < mtmdPrefillSeqs.Count; k++)
+                {
+                    var seq = mtmdPrefillSeqs[k];
+                    if (seq.MtmdEmbedsToPrefill.embeds != null && seq.MtmdEmbedsToPrefill.embeds.Length > 0)
+                    {
+                        currentRequiredLogitsIds[k] = seq.NextDecodedTokenPos + seq.MtmdEmbedsToPrefill.embeds.Length - 1;
+                    }
+                }
+
+                // 2. Оцениваем максимальное количество эмбеддингов, которое можем добавить (минимум от batchSize и суммы оставшихся)
+                int totalRemaining = 0;
+                foreach (var seq in mtmdPrefillSeqs)
+                {
+                    if (seq.MtmdEmbedsToPrefill.embeds != null)
+                        totalRemaining += seq.MtmdEmbedsToPrefill.embeds.Length - seq.MtmdEmbedsToPrefill.decodedCount;
+                }
+
+                int actualBatchSize = (int)Math.Min(batchSize, totalRemaining);
+
+                // 3. Выделяем память под плоские массивы для батча сразу нужного размера (zero-allocation в цикле)
+                float[] flatEmbeddings = new float[actualBatchSize * embedsDimension];
+                LLamaPos[] finalPositions = new LLamaPos[actualBatchSize * nPosPerEmbedding];
+                LLamaSeqId[][] finalSequenceIds = new LLamaSeqId[actualBatchSize][];
+                bool[] finalGenerateLogits = new bool[actualBatchSize];
+
+                int batchPos = 0;
+                bool tokenAdded = true;
+                int[] addedInThisBatch = new int[mtmdPrefillSeqs.Count]; // Счетчик добавленных токенов для каждой последовательности в ТЕКУЩЕМ батче
+
+                // 4. Цикл заполнения батча по принципу Round-Robin
+                while (batchPos < actualBatchSize && tokenAdded)
+                {
+                    tokenAdded = false;
+                    for (int i = 0; i < mtmdPrefillSeqs.Count && batchPos < actualBatchSize; i++)
+                    {
+                        int seqIdx = (_nextMtmdPrefillBatchId + i) % mtmdPrefillSeqs.Count;
+                        var seq = mtmdPrefillSeqs[seqIdx];
+
+                        if (seq.MtmdEmbedsToPrefill.embeds == null) continue;
+
+                        int decoded = seq.MtmdEmbedsToPrefill.decodedCount;
+                        int totalEmbeds = seq.MtmdEmbedsToPrefill.embeds.Length;
+
+                        // Проверяем, остались ли еще необработанные эмбеддинги в этой последовательности
+                        if (decoded + addedInThisBatch[seqIdx] < totalEmbeds)
+                        {
+                            int currentLocalIdx = decoded + addedInThisBatch[seqIdx];
+                            LlamaEmbedding emb = seq.MtmdEmbedsToPrefill.embeds[currentLocalIdx];
+
+                            // Абсолютная позиция токена в последовательности
+                            int absPos = seq.NextDecodedTokenPos + decoded + addedInThisBatch[seqIdx];
+
+                            // Копируем данные эмбеддинга в плоский массив
+                            var embSpan = emb.Data.Span;
+                            int offset = batchPos * embedsDimension;
+                            for (int d = 0; d < embedsDimension; d++)
+                            {
+                                flatEmbeddings[offset + d] = embSpan[d];
+                            }
+
+                            // Устанавливаем позицию. 
+                            // Примечание: Если useMrope == true и LLamaPos не умеет инкапсулировать 3D-координаты (x,y,z) из MtmdDecoderPosNative, 
+                            // вам потребуется расширить LLamaBatchEmbeddings, добавив массивы pos_x, pos_y, pos_z. 
+                            // Здесь используется стандартная 1D позиция.
+
+                            if (!useMrope)
+                            {
+                                finalPositions[batchPos] = (LLamaPos)absPos;
+                            }
+                            else
+                            {
+                                finalPositions[batchPos] = (LLamaPos)(seq.NextDecodedTokenPos + emb.Pos.Value.t);
+                                finalPositions[batchPos + actualBatchSize] = (LLamaPos)(seq.NextDecodedTokenPos + emb.Pos.Value.y);
+                                finalPositions[batchPos + 2 * actualBatchSize] = (LLamaPos)(seq.NextDecodedTokenPos + emb.Pos.Value.x);
+                                finalPositions[batchPos + 3 * actualBatchSize] = (LLamaPos)(seq.NextDecodedTokenPos + emb.Pos.Value.z);
+                            }
+
+                            // ID последовательности (каждый эмбеддинг привязан строго к одной последовательности)
+                            finalSequenceIds[batchPos] = new[] { seq.Id };
+
+                            // Проверяем, нужны ли логиты на этой абсолютной позиции
+                            bool needsLogits = currentRequiredLogitsIds.TryGetValue(seqIdx, out int reqPos) && reqPos == absPos;
+                            finalGenerateLogits[batchPos] = needsLogits;
+
+                            addedInThisBatch[seqIdx]++;
+
+                            // Обновляем словарь mtmdPrefilledSeqs (count и pos внутри батча)
+                            if (!mtmdPrefilledSeqs.ContainsKey(seqIdx))
+                            {
+                                mtmdPrefilledSeqs[seqIdx] = (1, needsLogits ? batchPos : -1);
+                            }
+                            else
+                            {
+                                var existing = mtmdPrefilledSeqs[seqIdx];
+                                int newCount = existing.count + 1;
+                                int newPos = existing.pos;
+                                if (needsLogits) newPos = batchPos; // Запоминаем индекс в батче, где будут логиты
+                                mtmdPrefilledSeqs[seqIdx] = (newCount, newPos);
+                            }
+
+                            batchPos++;
+                            tokenAdded = true;
+                        }
+                    }
+                }
+
+                // Сдвигаем указатель для следующего вызова, чтобы сохранить равномерность Round-Robin
+                if (actualBatchSize > 0)
+                {
+                    _nextMtmdPrefillBatchId = (_nextMtmdPrefillBatchId + 1) % mtmdPrefillSeqs.Count;
+                }
+
+                // 5. Создаем полностью инициализированный батч через конструктор
+                LLamaBatchEmbeddings batch = new LLamaBatchEmbeddings(
+                    embedsDimension,
+                    flatEmbeddings,
+                    finalPositions,
+                    nPosPerEmbedding,
+                    finalSequenceIds,
+                    finalGenerateLogits
+                );
+
+                return (batch, mtmdPrefilledSeqs);
             }
         }
     }

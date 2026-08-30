@@ -112,6 +112,13 @@ namespace Llama.csharp
             return (BOM, EOM, calculatedEmbeds);
         }
         // метод регистрации картинок, видео и звука на энкод, на вход спаны не битмапы
+        /// <summary>
+        /// Принимает top-down RGB буфер
+        /// </summary>
+        /// <param name="nx"></param>
+        /// <param name="ny"></param>
+        /// <param name="image"></param>
+        /// <returns></returns>
         public async Task<(string BOM, string EOM, LlamaEmbedding[] embeds)> EncodeImageFromRGB(uint nx, uint ny, Memory<byte> image)
         {
             (string BOM, string EOM, Task<LlamaEmbedding[]> embeds) = (await EncodeImages([nx], [ny], [image]))[0];

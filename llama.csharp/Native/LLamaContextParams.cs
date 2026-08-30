@@ -44,12 +44,12 @@ namespace Llama.csharp.Native
         /// <summary>
         /// number of recurrent-state snapshots per seq for rollback (0 = no rollback) [EXPERIMENTAL]
         /// </summary>
-        public int n_rs_seq;
+        public uint n_rs_seq;
 
         /// <summary>
         /// max outputs in a ubatch (0 = n_batch)
         /// </summary>
-        public int n_outputs_max;
+        public uint n_outputs_max;
 
         /// <summary>
         /// number of threads to use for generation
@@ -216,6 +216,15 @@ namespace Llama.csharp.Native
             set => _kv_unified = Convert.ToSByte(value);
         }
         private sbyte _kv_unified;
+
+        public IntPtr samplers;
+
+        public nuint n_samplers;
+
+        // a source/target/parent context
+        // can be utilized in various ways, for example by sharing results or llama_memory between 2 contexts
+        public IntPtr ctx_other;
+
 
         /// <summary>
         /// Get the default LLamaContextParams

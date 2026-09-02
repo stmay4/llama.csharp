@@ -6,5 +6,5 @@ using System.Threading.Tasks;
 
 namespace Llama.csharp
 {
-    public readonly record struct MtmdSpec (bool UseNonCausal, bool UseMrope);
+    public readonly record struct MtmdSpec (bool UseMrope);
 }

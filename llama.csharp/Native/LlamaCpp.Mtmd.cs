@@ -494,15 +494,10 @@ namespace Llama.csharp.Native
             }
         }
 
-        internal static SafeMtmdBitMapHandle Mtmd_BitMapInitFromAudio(nuint n_samples, Span<float> audio)
+        internal static SafeMtmdBitMapHandle Mtmd_BitMapInitFromAudio(Span<float> audio)
         {
             EnsureMtmdInitialized();
-
-            // Проверка размера буфера
-            if ((nuint)audio.Length < n_samples)
-                throw new ArgumentException(
-                    $"Audio buffer too small: expected {n_samples}, got {audio.Length}");
-
+            nuint n_samples = (nuint)audio.Length;
             unsafe
             {
                 fixed (float* aud = audio)

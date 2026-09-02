@@ -25,6 +25,10 @@ namespace Llama.csharp.IntegrationTest
         private static readonly string _qwen3ModelPath = @"D:\LLMmodels\Qwen3-VL-4B-Instruct-UD-Q5_K_XL.gguf"; // !set your vision model path!
         private static readonly string _qwen3mmprojPath = @"D:\LLMmodels\Qwen3-VL-4B-Instruct-mmproj-F16.gguf"; // !set your mmproj path!
 
+        //QWEN 3 ASR
+        private static readonly string _qwen3ASRModelPath = @"D:\LLMmodels\Qwen3-ASR-1.7B-Q8_0.gguf"; // !set your vision model path!
+        private static readonly string _qwen3ASRmmprojPath = @"D:\LLMmodels\mmproj-Qwen3-ASR-1.7B-bf16.gguf"; // !set your mmproj path!
+
         //QWEN 3.5
         private static readonly string _qwen35modelPath = @"D:\LLMmodels\Qwen3.5-4B-UD-Q5_K_XL.gguf"; // !set your vision model path!
         private static readonly string _qwen35mmprojPath = @"D:\LLMmodels\qwen3.5-4b-mmproj-F16.gguf"; // !set your mmproj path!
@@ -40,6 +44,7 @@ namespace Llama.csharp.IntegrationTest
         private static readonly string _сpuBackend = "ggml-cpu-alderlake.dll"; // !set the best CPU backend for your PC here!
 
         private static readonly string _testImagePath = "./assets/mtmdImageTest.png";
+        private static readonly string _testAudioPath = "./assets/mtmdAudioTest(gen).wav";
 
         private readonly ITestOutputHelper _output;
         public TestMtmd(ITestOutputHelper output)
@@ -348,18 +353,77 @@ namespace Llama.csharp.IntegrationTest
             {
                 UseGpu = false,
                 Threads = 8,
-                ImageMinTokens = 8,
-                ImageMaxTokens = 8,
+                //ImageMinTokens = 8,
+                //ImageMaxTokens = 8,
             };
 
-            IModelParams modelParams = new ModelParams(_qwen3ModelPath);
+            IModelParams modelParams = new ModelParams(_gemma4modelPath);
             LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
             // Act
             var act = async () =>
             {
-                MtmdContext ctx = MtmdContext.CreateFromFile(_qwen3mmprojPath, model, mtmdParams);
+                MtmdContext ctx = MtmdContext.CreateFromFile(_gemma4mmprojPath, model, mtmdParams);
 
                 var result = await ctx.EncodeImageFromPath(_testImagePath);
+
+                foreach (var emded in result.embeds)
+                {
+                    _output.WriteLine(emded.Data.ToString());
+                }
+
+                _output.WriteLine(result.BOM);
+                _output.WriteLine(result.EOM);
+
+                ctx.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task MtmdContext_EncodeAudio_Valid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend),
+                Path.Combine(_baseDllPath, "mtmd.dll"),
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]],
+                                requiredFiles[4]);
+            #endregion
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMinTokens = 8,
+                ImageMaxTokens = 8,
+            };
+
+            IModelParams modelParams = new ModelParams(_gemma4modelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_gemma4mmprojPath, model, mtmdParams);
+
+                var result = await ctx.EncodeAudioFromWav(_testAudioPath);
 
                 foreach (var emded in result.embeds)
                 {
@@ -481,8 +545,7 @@ namespace Llama.csharp.IntegrationTest
 
                 await executor.ProcessPrompt(seq1, " <|im_start|>system\n you are a helpfull assistant\n<|im_end|>" +
                     "\n<|im_start|>user\n " + result.BOM);
-                Dictionary<LLamaSeqId, Task> mtmdprefill = await executor.ProcessMtmdEmbeds([seq1], [result.embeds]);
-                await mtmdprefill[seq1];
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
                 await executor.ProcessPrompt(seq1, result.EOM + "What displayed on image? \n<|im_end|>\n<|im_start|>assistant\n");
                 
                 InferenceParams inferenceParams = new InferenceParams()
@@ -562,9 +625,177 @@ namespace Llama.csharp.IntegrationTest
 
                 await executor.ProcessPrompt(seq1, "<system> you are a helpfull assistant </system>" +
                     "\n<user>\n What displayed on image? " + result.BOM);
-                Dictionary<LLamaSeqId, Task> mtmdprefill = await executor.ProcessMtmdEmbeds([seq1], [result.embeds]);
-                await mtmdprefill[seq1];
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
                 await executor.ProcessPrompt(seq1, result.EOM + "\n</user>\n<assistant>\n");
+
+                InferenceParams inferenceParams = new InferenceParams()
+                {
+                    MaxTokens = 200,
+                    AutoStopFromEOG = true,
+                    DecodeSpecialTokens = true,
+                    AntiPrompts = ["</assistant>"]
+                };
+
+                Channel<string> ch1 = await executor.Generate(seq1, inferenceParams);
+
+                string genText = "";
+                await foreach (var text in ch1.Reader.ReadAllAsync())
+                {
+                    genText += text;
+                }
+
+                _output.WriteLine(genText);
+
+                ctx.Dispose();
+                executor.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        #endregion
+
+        #region QWEN_3_ASR
+
+        [Fact]
+        public async Task MtmdAudio_Vulkan_Qwen3ASR_StandartTemplate_DecodeByLLM_Valid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend),
+                Path.Combine(_baseDllPath, "ggml-vulkan.dll"),
+                Path.Combine(_baseDllPath, "mtmd.dll"),
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3], requiredFiles[4]],
+                                requiredFiles[5]);
+            #endregion
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = true,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+                BatchSize = 512
+            };
+
+            IModelParams modelParams = new ModelParams(_qwen3ASRModelPath)
+            {
+                GpuLayerCount = 99
+            };
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_qwen3ASRmmprojPath, model, mtmdParams);
+
+                var result = await ctx.EncodeAudioFromWav(_testAudioPath);
+
+                ContextParams ctxParams = new ContextParams() { ContextSize = 4000, NoKqvOffload = false};
+
+                LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
+
+                LLamaSeqId seq1 = await executor.CreateSequence();
+
+                await executor.ProcessPrompt(seq1, " <|im_start|>system\n you are a helpfull ASR system, write text from audiofiles\n<|im_end|>" +
+                    "\n<|im_start|>user\n " + result.BOM);
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
+                await executor.ProcessPrompt(seq1, result.EOM + "\n<|im_end|>\n<|im_start|>assistant\n");
+
+                InferenceParams inferenceParams = new InferenceParams()
+                {
+                    MaxTokens = 200,
+                    AutoStopFromEOG = true,
+                    DecodeSpecialTokens = true,
+                    AntiPrompts = []
+                };
+
+                Channel<string> ch1 = await executor.Generate(seq1, inferenceParams);
+
+                string genText = "";
+                await foreach (var text in ch1.Reader.ReadAllAsync())
+                {
+                    genText += text;
+                }
+
+                _output.WriteLine(genText);
+
+                ctx.Dispose();
+                executor.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task MtmdAudio_Qwen3ASR_RandomTemplate_DecodeByLLM_Valid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend),
+                Path.Combine(_baseDllPath, "mtmd.dll"),
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]],
+                                requiredFiles[4]);
+            #endregion
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+            };
+
+            IModelParams modelParams = new ModelParams(_qwen3ASRModelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_qwen3ASRmmprojPath, model, mtmdParams);
+
+                var result = await ctx.EncodeAudioFromWav(_testAudioPath);
+
+                ContextParams ctxParams = new ContextParams() { ContextSize = 8000 };
+
+                LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
+
+                LLamaSeqId seq1 = await executor.CreateSequence();
+
+                await executor.ProcessPrompt(seq1, "<system> you are a helpfull assistant </system>" +
+                    "\n<user>\n" + result.BOM);
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
+                await executor.ProcessPrompt(seq1, result.EOM + "\n</user>\n<assistant>\nlanguage English<asr_text>");
 
                 InferenceParams inferenceParams = new InferenceParams()
                 {
@@ -647,8 +878,7 @@ namespace Llama.csharp.IntegrationTest
 
                 await executor.ProcessPrompt(seq1, " <|im_start|>system\n you are a helpfull assistant\n<|im_end|>" +
                     "\n<|im_start|>user\n " + result.BOM);
-                Dictionary<LLamaSeqId, Task> mtmdprefill = await executor.ProcessMtmdEmbeds([seq1], [result.embeds]);
-                await mtmdprefill[seq1];
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
                 await executor.ProcessPrompt(seq1, result.EOM + "What displayed on image? \n<|im_end|>\n<|im_start|>assistant\n");
 
                 InferenceParams inferenceParams = new InferenceParams()
@@ -728,8 +958,7 @@ namespace Llama.csharp.IntegrationTest
 
                 await executor.ProcessPrompt(seq1, "<system> you are a helpfull assistant </system>" +
                     "\n<user>\n What displayed on image? " + result.BOM);
-                Dictionary<LLamaSeqId, Task> mtmdprefill = await executor.ProcessMtmdEmbeds([seq1], [result.embeds]);
-                await mtmdprefill[seq1];
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
                 await executor.ProcessPrompt(seq1, result.EOM + "\n</user>\n<assistant>\n");
 
                 InferenceParams inferenceParams = new InferenceParams()
@@ -813,13 +1042,91 @@ namespace Llama.csharp.IntegrationTest
 
                 await executor.ProcessPrompt(seq1, " <|turn>system\n you are a helpfull assistant\n<turn|>\n" +
                     "<|turn>user\n " + result.BOM, model.Vocab.ShouldAddBOS);
-                Dictionary<LLamaSeqId, Task> mtmdprefill = await executor.ProcessMtmdEmbeds([seq1], [result.embeds]);
-                await mtmdprefill[seq1];
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
                 await executor.ProcessPrompt(seq1, result.EOM + "What displayed on image? \n<turn|>\n<|turn>model\n<|channel>thought");
 
                 InferenceParams inferenceParams = new InferenceParams()
                 {
                     MaxTokens = 200,
+                    AutoStopFromEOG = true,
+                    DecodeSpecialTokens = true,
+                    AntiPrompts = []
+                };
+
+                Channel<string> ch1 = await executor.Generate(seq1, inferenceParams);
+
+                string genText = "";
+                await foreach (var text in ch1.Reader.ReadAllAsync())
+                {
+                    genText += text;
+                }
+
+                _output.WriteLine(genText);
+
+                ctx.Dispose();
+                executor.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task MtmdAudio_Gemma4_SemistandartTemplate_DecodeByLLM_Valid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend),
+                Path.Combine(_baseDllPath, "mtmd.dll"),
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]],
+                                requiredFiles[4]);
+            #endregion
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+            };
+
+            IModelParams modelParams = new ModelParams(_gemma4modelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_gemma4mmprojPath, model, mtmdParams);
+
+                var result = await ctx.EncodeAudioFromWav(_testAudioPath);
+
+                ContextParams ctxParams = new ContextParams() { ContextSize = 8000 };
+
+                LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
+
+                LLamaSeqId seq1 = await executor.CreateSequence();
+
+                await executor.ProcessPrompt(seq1, " <|turn>system\n you are a helpfull VLM assistant with vision and audio capabilities. Vision in <vision></vision> tags and audio in <audio></audio> tags, respectively. \n<turn|>\n" +
+                    "<|turn>user\n Listen to the audio, identify the speaker’s voice, and describe it.\n<audio>" + result.BOM, model.Vocab.ShouldAddBOS);
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
+                await executor.ProcessPrompt(seq1, result.EOM + "</audio>\n<turn|>\n<|turn>model\n<|channel>thought\nThinking");
+
+                InferenceParams inferenceParams = new InferenceParams()
+                {
+                    MaxTokens = 1000,
                     AutoStopFromEOG = true,
                     DecodeSpecialTokens = true,
                     AntiPrompts = []
@@ -894,8 +1201,7 @@ namespace Llama.csharp.IntegrationTest
 
                 await executor.ProcessPrompt(seq1, "<system> you are a helpfull assistant </system>" +
                     "\n<user>\n What displayed on image? " + result.BOM, model.Vocab.ShouldAddBOS);
-                Dictionary<LLamaSeqId, Task> mtmdprefill = await executor.ProcessMtmdEmbeds([seq1], [result.embeds]);
-                await mtmdprefill[seq1];
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
                 await executor.ProcessPrompt(seq1, result.EOM + "\n</user>\n<assistant>\n");
 
                 InferenceParams inferenceParams = new InferenceParams()
@@ -979,13 +1285,91 @@ namespace Llama.csharp.IntegrationTest
 
                 await executor.ProcessPrompt(seq1, " <|turn>system\n you are a helpfull assistant\n<turn|>\n" +
                     "<|turn>user\n " + result.BOM, model.Vocab.ShouldAddBOS);
-                Dictionary<LLamaSeqId, Task> mtmdprefill = await executor.ProcessMtmdEmbeds([seq1], [result.embeds]);
-                await mtmdprefill[seq1];
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
                 await executor.ProcessPrompt(seq1, result.EOM + "What displayed on image? \n<turn|>\n<|turn>model\n<|channel>thought");
 
                 InferenceParams inferenceParams = new InferenceParams()
                 {
                     MaxTokens = 200,
+                    AutoStopFromEOG = true,
+                    DecodeSpecialTokens = true,
+                    AntiPrompts = []
+                };
+
+                Channel<string> ch1 = await executor.Generate(seq1, inferenceParams);
+
+                string genText = "";
+                await foreach (var text in ch1.Reader.ReadAllAsync())
+                {
+                    genText += text;
+                }
+
+                _output.WriteLine(genText);
+
+                ctx.Dispose();
+                executor.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task MtmdAudio_Gemma4Uni_SemistandartTemplate_DecodeByLLM_Valid()
+        {
+            #region init
+            var requiredFiles = new[]
+            {
+                Path.Combine(_baseDllPath, "llama.dll"),
+                Path.Combine(_baseDllPath, "ggml.dll"),
+                Path.Combine(_baseDllPath, "ggml-base.dll"),
+                Path.Combine(_baseDllPath, _сpuBackend),
+                Path.Combine(_baseDllPath, "mtmd.dll"),
+            };
+
+            foreach (var file in requiredFiles)
+            {
+                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
+            }
+
+            LlamaCpp.Initialize(requiredFiles[0],
+                                requiredFiles[1],
+                                requiredFiles[2],
+                               [requiredFiles[3]],
+                                requiredFiles[4]);
+            #endregion
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+            };
+
+            IModelParams modelParams = new ModelParams(_gemma4UnimodelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_gemma4UnimmprojPath, model, mtmdParams);
+
+                var result = await ctx.EncodeAudioFromWav(_testAudioPath);
+
+                ContextParams ctxParams = new ContextParams() { ContextSize = 8000 };
+
+                LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
+
+                LLamaSeqId seq1 = await executor.CreateSequence();
+
+                await executor.ProcessPrompt(seq1, " <|turn>system\n you are a helpfull VLM assistant with vision and audio capabilities. Vision in <vision></vision> tags and audio in <audio></audio> tags, respectively. \n<turn|>\n" +
+                    "<|turn>user\n Listen to the audio, identify the speaker’s voice, and describe it.\n<audio>" + result.BOM, model.Vocab.ShouldAddBOS); //не могут описывать голос (угадывают не всегда), извлекают только текст, и то хуже qwen3asr
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
+                await executor.ProcessPrompt(seq1, result.EOM + "</audio>\n<turn|>\n<|turn>model\n<|channel>thought\nThinking");
+
+                InferenceParams inferenceParams = new InferenceParams()
+                {
+                    MaxTokens = 1000,
                     AutoStopFromEOG = true,
                     DecodeSpecialTokens = true,
                     AntiPrompts = []
@@ -1060,8 +1444,7 @@ namespace Llama.csharp.IntegrationTest
 
                 await executor.ProcessPrompt(seq1, "<system> you are a helpfull assistant </system>" +
                     "\n<user>\n What displayed on image? " + result.BOM, model.Vocab.ShouldAddBOS);
-                Dictionary<LLamaSeqId, Task> mtmdprefill = await executor.ProcessMtmdEmbeds([seq1], [result.embeds]);
-                await mtmdprefill[seq1];
+                await executor.ProcessMtmdEmbeds(seq1, result.embeds);
                 await executor.ProcessPrompt(seq1, result.EOM + "\n</user>\n<assistant>\n");
 
                 InferenceParams inferenceParams = new InferenceParams()

@@ -31,9 +31,9 @@ namespace Llama.csharp.Native
             return LlamaCpp.Mtmd_BitMapInitFromImage(nx, ny, image);
         }
 
-        public static SafeMtmdBitMapHandle InitFromAudio(nuint n_samples, Span<float> audio)
+        public static SafeMtmdBitMapHandle InitFromAudio(Span<float> audio)
         {
-            return LlamaCpp.Mtmd_BitMapInitFromAudio(n_samples, audio);
+            return LlamaCpp.Mtmd_BitMapInitFromAudio(audio);
         }
         protected override bool ReleaseHandle()
         {

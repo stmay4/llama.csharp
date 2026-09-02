@@ -14,10 +14,13 @@ namespace Llama.csharp
         
         // установлено если MROPE модель. позиция относительная - относительно первого эмбеддинга картинки, перед занесением в llama_decode надо добавить колво обрабтанных токенов
         internal MtmdDecoderPosNative? Pos { get; }
-        internal LlamaEmbedding(Memory<float> data, LlamaEmbeddingType type, MtmdDecoderPosNative? pos = null)
+
+        internal bool UseNonCausal { get; }
+        internal LlamaEmbedding(Memory<float> data, LlamaEmbeddingType type, bool useNonCausal, MtmdDecoderPosNative? pos = null)
         {
             Data = data;
             Type = type;
+            UseNonCausal = useNonCausal;
             Pos = pos;
         }
     }

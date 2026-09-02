@@ -17,7 +17,7 @@ namespace Llama.csharp.Native
         
         byte* text;
 
-        sbyte add_special = 1;
+        sbyte add_special = 0; //add bos, dont use
 
         sbyte parse_special = 1;
 

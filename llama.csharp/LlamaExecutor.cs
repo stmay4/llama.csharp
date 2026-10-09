@@ -201,9 +201,9 @@ namespace Llama.csharp
         /// Tokenization of input before sending to sequence prefill
         /// </summary>
         /// <param name="text"></param>
-        private List<LLamaToken> preprocessInputs(string text, bool addBos, bool special)
+        private LLamaToken[] preprocessInputs(string text, bool addBos, bool special)
         {
-            return Context.Tokenize(text, addBos, special).ToList();
+            return Context.Tokenize(text, addBos, special);
         }
 
         /// <summary>
@@ -268,7 +268,7 @@ namespace Llama.csharp
             #endregion
 
             Dictionary<LLamaSeqId, Task> completions = new Dictionary<LLamaSeqId, Task>();
-            Dictionary<LLamaSeqId, List<LLamaToken>?> tokenizedTexts = new Dictionary<LLamaSeqId, List<LLamaToken>?>();
+            Dictionary<LLamaSeqId, LLamaToken[]?> tokenizedTexts = new Dictionary<LLamaSeqId, LLamaToken[]?>();
             //tokenization
             for (int i = 0; i < seqIds.Count; i++)
             {
@@ -291,17 +291,15 @@ namespace Llama.csharp
                         completions[seqId] = tcs.Task; // set prefill Task in completions for return from method
 
                         // Check for available space in the context cache
-                        if (isOutOfContext(tokenizedTexts[seqId].Count))
+                        if (isOutOfContext(tokenizedTexts[seqId].Length))
                         {
                             tcs.SetException(new ContextFullException()); // Set an error in the task if the context is full
                         }
                         else
                         {
                             // Filling the TokensToPrefill sequence
-                            seq.TokensToPrefill.AddRange(tokenizedTexts[seqId]);
-                            seq.RealTokensCount += seq.TokensToPrefill.Count; // Adding prefill tokens count to real (not shared with other sequences) tokens count
-
-                            seq.InferState.State = SeqState.Prefill; // Setting the sequence state to prefill
+                            seq.AddTokensToPrefill(tokenizedTexts[seqId]);
+                            seq.SetStatus(SeqState.Prefill); // Setting the sequence state to prefill
 
                             _workSignal.Set(); // Setting the work availability signal; the decode loop will wait for the exit from this method's lock
 
@@ -446,7 +444,7 @@ namespace Llama.csharp
                     // Parameter checks inside the lock because resources are shared
                     if (seq == null) throw new IndexOutOfRangeException($"There is not {seqId} sequence");
                     if (seq.InferState.State != SeqState.None) throw new Exception($"{seqId} sequence using in another place: {seq.InferState.State}");
-                    if (seq.InferParams.MaxTokens == 0) throw new Exception($"For prefill use ProcessPrompt");
+                    if (inferenceParams[inferenceParamsCounter].MaxTokens == 0) throw new Exception($"For prefill use ProcessPrompt");
                     if (seq.NextDecodedTokenPos == 0)
                         throw new InvalidOperationException($"Cannot generate on an empty sequence (id={seqId}). Please prefill some text first.");
 

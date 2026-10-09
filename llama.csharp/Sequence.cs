@@ -53,6 +53,13 @@ namespace Llama.csharp
 
         #endregion
 
+        internal void AddTokensToPrefill(LLamaToken[] tokens)
+        {
+            // Filling the TokensToPrefill sequence
+            TokensToPrefill.AddRange(tokens);
+            RealTokensCount += TokensToPrefill.Count; // Adding prefill tokens count to real (not shared with other sequences) tokens count
+        }
+
         internal void AddMtmdEmbedsForPrefill(LlamaEmbedding[] embeds)
         {
             MtmdEmbedsToPrefill = (embeds,0);

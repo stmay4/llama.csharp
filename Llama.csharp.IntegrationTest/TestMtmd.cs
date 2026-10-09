@@ -1,17 +1,8 @@
-﻿using FluentAssertions;
+using FluentAssertions;
+using Llama.csharp.Abstractions;
 using Llama.csharp.Extensions;
 using Llama.csharp.Interfaces;
 using Llama.csharp.Native;
-using Newtonsoft.Json.Linq;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using System;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.Encodings;
 using System.Threading.Channels;
 using Xunit.Abstractions;
 
@@ -46,6 +37,11 @@ namespace Llama.csharp.IntegrationTest
         private static readonly string _testImagePath = "./assets/mtmdImageTest.png";
         private static readonly string _testAudioPath = "./assets/mtmdAudioTest(gen).wav";
 
+        
+        private static readonly string _testImagePath1 = _testImagePath;
+        private static readonly string _testImagePath2 = _testImagePath;
+        private static readonly string _testImagePath3 = _testImagePath;
+
         private readonly ITestOutputHelper _output;
         public TestMtmd(ITestOutputHelper output)
         {
@@ -55,27 +51,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public void LlamaExecutor_ValidCreation()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             MtmdContextParams @params = MtmdContextParams.Default();
 
@@ -86,27 +62,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public void LlamaExecutor_InValidCreation_FromNotMtmdInit()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]]
-                                );
-            #endregion
+            LibraryInitHelper.InitializeCpuOnly(_baseDllPath, _сpuBackend);
 
             var act = () => MtmdContextParams.Default();
 
@@ -142,27 +98,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public void ToLlamaContextParams_ValidParams_FillsStructCorrectly()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var @params = new MtmdParams
@@ -196,27 +132,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public void ToLlamaContextParams_NullParams_UsesDefaults()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var @params = new MtmdParams(); // Все null-значения
@@ -236,27 +152,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public void ToLlamaContextParams_PartialParams_UsesDefaultsForNull()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var @params = new MtmdParams
@@ -280,27 +176,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public void CreateMtmdContext_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -326,27 +202,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdContext_EncodeImage_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -385,27 +241,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdContext_EncodeAudio_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -444,27 +280,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public void MtmdContext_CheckFields()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -498,27 +314,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdImage_Qwen3_StandartTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -547,7 +343,7 @@ namespace Llama.csharp.IntegrationTest
                     "\n<|im_start|>user\n " + result.BOM);
                 await executor.ProcessMtmdEmbeds(seq1, result.embeds);
                 await executor.ProcessPrompt(seq1, result.EOM + "What displayed on image? \n<|im_end|>\n<|im_start|>assistant\n");
-                
+
                 InferenceParams inferenceParams = new InferenceParams()
                 {
                     MaxTokens = 200,
@@ -578,27 +374,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdImage_Qwen3_RandomTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -655,6 +431,187 @@ namespace Llama.csharp.IntegrationTest
             model.Dispose();
         }
 
+        [Fact]
+        public async Task MtmdImage_Qwen3_MultipleImagesEncode_OnlyEncode_Valid()
+        {
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+                BatchSize = 1024
+            };
+
+            IModelParams modelParams = new ModelParams(_qwen3ModelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+
+            // Placeholder image paths - to be replaced with actual image paths
+            List<string> imagePaths = new List<string>
+            {
+                _testImagePath1,
+                _testImagePath2,
+                _testImagePath3
+            };
+
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_qwen3mmprojPath, model, mtmdParams);
+
+                // Encode 3 images in a single request
+                var results = await ctx.EncodeImageFromPaths(imagePaths);
+
+                // Assert - verify we got 3 results
+                results.Should().HaveCount(3);
+
+                // Verify each result has BOM, EOM and embeds task
+                foreach (var result in results)
+                {
+                    result.BOM.Should().NotBeNullOrEmpty();
+                    result.EOM.Should().NotBeNullOrEmpty();
+                    result.embeds.Should().NotBeNull();
+
+                    // Wait for embeds to be calculated
+                    LlamaEmbedding[] embeds = await result.embeds;
+                    embeds.Should().NotBeNull();
+                    embeds.Length.Should().BeGreaterThan(0);
+                }
+
+                ctx.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task MtmdImage_Qwen3_MultipleImagesEncodeAndBatchProcess_Valid()
+        {
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+            };
+
+            IModelParams modelParams = new ModelParams(_qwen3ModelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+
+            // Placeholder image paths - to be replaced with actual image paths
+            List<string> imagePaths = new List<string>
+            {
+                _testImagePath1,
+                _testImagePath2,
+                _testImagePath3
+            };
+
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_qwen3mmprojPath, model, mtmdParams);
+
+                // Encode 3 images in a single request
+                var encodeResults = await ctx.EncodeImageFromPaths(imagePaths);
+
+                ContextParams ctxParams = new ContextParams() { ContextSize = 12000, SeqMax = 10 };
+
+                LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
+
+                // Create 3 separate sequences for batch processing
+                LLamaSeqId seq1 = await executor.CreateSequence();
+                LLamaSeqId seq2 = await executor.CreateSequence();
+                LLamaSeqId seq3 = await executor.CreateSequence();
+
+                List<LLamaSeqId> seqIds = new List<LLamaSeqId> { seq1, seq2, seq3 };
+                List<LlamaEmbedding[]> embedsList = new List<LlamaEmbedding[]>();
+
+                // Process first image in seq1
+                var result1 = encodeResults[0];
+                var result2 = encodeResults[1];
+                var result3 = encodeResults[2];
+
+                await executor.ProcessPrompt(seq1, "<system>\n you are a helpfull assistant\n</system>\n<user>\n " + result1.BOM, model.Vocab.ShouldAddBOS);
+
+                // Share the prefix
+                await executor.CopySeqPrefixTo(seq1, [seq2, seq3], (LLamaPos)(await executor.GetSequenceNextDecodedTokenPos(seq1)));
+
+                // Collect mtmd embeds
+                embedsList.Add(await result1.embeds);
+                embedsList.Add(await result2.embeds);
+                embedsList.Add(await result3.embeds);
+
+                // Batch process mtmd embeds to specified sequences
+                var embedsTasksDict = await executor.ProcessMtmdEmbeds(seqIds, embedsList);
+
+                // Wait for all embed processing tasks to complete (for test I use Task.WhenAll)
+                await Task.WhenAll(embedsTasksDict.Values);
+
+                // Register different questions in seqs
+                Dictionary<LLamaSeqId, Task> prefilltasks = await executor.ProcessPrompt(
+                    [seq1, seq2, seq3],
+                    [
+                    result1.EOM + "What colors are on the image? </user>\n<assistant>\n",
+                    result2.EOM + "What test is on the image? </user>\n<assistant>\n",
+                    result3.EOM + "What is on the image? </user>\n<assistant>\n"
+                    ]
+                );
+
+                //(for test I use Task.WhenAll)
+                await Task.WhenAll(prefilltasks.Values);
+
+                // Generate text for each sequence
+                InferenceParams inferenceParams = new InferenceParams()
+                {
+                    MaxTokens = 200,
+                    AutoStopFromEOG = true,
+                    DecodeSpecialTokens = true,
+                    AntiPrompts = ["</assistant>"]
+                };
+
+                // Generate for seq1
+                Channel<string> ch1 = await executor.Generate(seq1, inferenceParams);
+                string genText1 = "";
+                // Generate for seq2
+                Channel<string> ch2 = await executor.Generate(seq2, inferenceParams);
+                string genText2 = "";
+                // Generate for seq3
+                Channel<string> ch3 = await executor.Generate(seq3, inferenceParams);
+                string genText3 = "";
+
+                await foreach (var text in ch1.Reader.ReadAllAsync())
+                {
+                    genText1 += text;
+                }
+                _output.WriteLine("Seq1 result: " + genText1);
+
+                await foreach (var text in ch2.Reader.ReadAllAsync())
+                {
+                    genText2 += text;
+                }
+                _output.WriteLine("Seq2 result: " + genText2);
+
+                await foreach (var text in ch3.Reader.ReadAllAsync())
+                {
+                    genText3 += text;
+                }
+                _output.WriteLine("Seq3 result: " + genText3);
+
+                ctx.Dispose();
+                executor.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
         #endregion
 
         #region QWEN_3_ASR
@@ -662,28 +619,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdAudio_Vulkan_Qwen3ASR_StandartTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "ggml-vulkan.dll"),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3], requiredFiles[4]],
-                                requiredFiles[5]);
-            #endregion
+            LibraryInitHelper.InitializeCpuVulkanAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -706,7 +642,7 @@ namespace Llama.csharp.IntegrationTest
 
                 var result = await ctx.EncodeAudioFromWav(_testAudioPath);
 
-                ContextParams ctxParams = new ContextParams() { ContextSize = 4000, NoKqvOffload = false};
+                ContextParams ctxParams = new ContextParams() { ContextSize = 4000, NoKqvOffload = false };
 
                 LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
 
@@ -747,27 +683,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdAudio_Qwen3ASR_RandomTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -831,27 +747,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdImage_Qwen35_StandartTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuVulkanAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -861,7 +757,7 @@ namespace Llama.csharp.IntegrationTest
                 ImageMaxTokens = 1000,
             };
 
-            IModelParams modelParams = new ModelParams(_qwen35modelPath);
+            IModelParams modelParams = new ModelParams(_qwen35modelPath) { GpuLayerCount = 0 };
             LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
             // Act
             var act = async () =>
@@ -911,27 +807,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdImage_Qwen35_RandomTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -988,6 +864,186 @@ namespace Llama.csharp.IntegrationTest
             model.Dispose();
         }
 
+        [Fact]
+        public async Task MtmdImage_Qwen35_MultipleImagesEncode_OnlyEncode_Valid()
+        {
+            LibraryInitHelper.InitializeCpuVulkanAndMtmd(_baseDllPath, _сpuBackend);
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+            };
+
+            IModelParams modelParams = new ModelParams(_qwen35modelPath) { GpuLayerCount = 0 };
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+
+            // Placeholder image paths - to be replaced with actual image paths
+            List<string> imagePaths = new List<string>
+            {
+                _testImagePath1,
+                _testImagePath2,
+                _testImagePath3
+            };
+
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_qwen35mmprojPath, model, mtmdParams);
+
+                // Encode 3 images in a single request
+                var results = await ctx.EncodeImageFromPaths(imagePaths);
+
+                // Assert - verify we got 3 results
+                results.Should().HaveCount(3);
+
+                // Verify each result has BOM, EOM and embeds task
+                foreach (var result in results)
+                {
+                    result.BOM.Should().NotBeNullOrEmpty();
+                    result.EOM.Should().NotBeNullOrEmpty();
+                    result.embeds.Should().NotBeNull();
+
+                    // Wait for embeds to be calculated
+                    LlamaEmbedding[] embeds = await result.embeds;
+                    embeds.Should().NotBeNull();
+                    embeds.Length.Should().BeGreaterThan(0);
+                }
+
+                ctx.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task MtmdImage_Qwen35_MultipleImagesEncodeAndBatchProcess_Valid()
+        {
+            LibraryInitHelper.InitializeCpuVulkanAndMtmd(_baseDllPath, _сpuBackend);
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+            };
+
+            IModelParams modelParams = new ModelParams(_qwen35modelPath) { GpuLayerCount = 0 };
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+
+            // Placeholder image paths - to be replaced with actual image paths
+            List<string> imagePaths = new List<string>
+            {
+                _testImagePath1,
+                _testImagePath2,
+                _testImagePath3
+            };
+
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_qwen35mmprojPath, model, mtmdParams);
+
+                // Encode 3 images in a single request
+                var encodeResults = await ctx.EncodeImageFromPaths(imagePaths);
+
+                ContextParams ctxParams = new ContextParams() { ContextSize = 12000, SeqMax = 10 };
+
+                LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
+
+                // Create 3 separate sequences for batch processing
+                LLamaSeqId seq1 = await executor.CreateSequence();
+                LLamaSeqId seq2 = await executor.CreateSequence();
+                LLamaSeqId seq3 = await executor.CreateSequence();
+
+                List<LLamaSeqId> seqIds = new List<LLamaSeqId> { seq1, seq2, seq3 };
+                List<LlamaEmbedding[]> embedsList = new List<LlamaEmbedding[]>();
+
+                // Process first image in seq1
+                var result1 = encodeResults[0];
+                var result2 = encodeResults[1];
+                var result3 = encodeResults[2];
+
+                await executor.ProcessPrompt(seq1, "<system>\n you are a helpfull assistant\n</system>\n<user>\n " + result1.BOM, model.Vocab.ShouldAddBOS);
+
+                // Share the prefix
+                await executor.CopySeqPrefixTo(seq1, [seq2, seq3], (LLamaPos)(await executor.GetSequenceNextDecodedTokenPos(seq1)));
+
+                // Collect mtmd embeds
+                embedsList.Add(await result1.embeds);
+                embedsList.Add(await result2.embeds);
+                embedsList.Add(await result3.embeds);
+
+                // Batch process mtmd embeds to specified sequences
+                var embedsTasksDict = await executor.ProcessMtmdEmbeds(seqIds, embedsList);
+
+                // Wait for all embed processing tasks to complete (for test I use Task.WhenAll)
+                await Task.WhenAll(embedsTasksDict.Values);
+
+                // Register different questions in seqs
+                Dictionary<LLamaSeqId, Task> prefilltasks = await executor.ProcessPrompt(
+                    [seq1, seq2, seq3], 
+                    [
+                    result1.EOM + "What colors are on the image? </user>\n<assistant>\n",
+                    result2.EOM + "What test is on the image? </user>\n<assistant>\n",
+                    result3.EOM + "What is on the image? </user>\n<assistant>\n"
+                    ]
+                );
+                
+                //(for test I use Task.WhenAll)
+                await Task.WhenAll(prefilltasks.Values);
+
+                // Generate text for each sequence
+                InferenceParams inferenceParams = new InferenceParams()
+                {
+                    MaxTokens = 200,
+                    AutoStopFromEOG = true,
+                    DecodeSpecialTokens = true,
+                    AntiPrompts = ["</assistant>"]
+                };
+
+                // Generate for seq1
+                Channel<string> ch1 = await executor.Generate(seq1, inferenceParams);
+                string genText1 = "";
+                // Generate for seq2
+                Channel<string> ch2 = await executor.Generate(seq2, inferenceParams);
+                string genText2 = "";
+                // Generate for seq3
+                Channel<string> ch3 = await executor.Generate(seq3, inferenceParams);
+                string genText3 = "";
+
+                await foreach (var text in ch1.Reader.ReadAllAsync())
+                {
+                    genText1 += text;
+                }
+                _output.WriteLine("Seq1 result: " + genText1);
+
+                await foreach (var text in ch2.Reader.ReadAllAsync())
+                {
+                    genText2 += text;
+                }
+                _output.WriteLine("Seq2 result: " + genText2);
+
+                await foreach (var text in ch3.Reader.ReadAllAsync())
+                {
+                    genText3 += text;
+                }
+                _output.WriteLine("Seq3 result: " + genText3);
+
+                ctx.Dispose();
+                executor.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
         #endregion
 
         #region GEMMA4
@@ -995,27 +1051,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdImage_Gemma4_StandartTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -1075,27 +1111,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdAudio_Gemma4_SemistandartTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -1119,16 +1135,17 @@ namespace Llama.csharp.IntegrationTest
 
                 LLamaSeqId seq1 = await executor.CreateSequence();
 
-                await executor.ProcessPrompt(seq1, " <|turn>system\n you are a helpfull VLM assistant with vision and audio capabilities. Vision in <vision></vision> tags and audio in <audio></audio> tags, respectively. \n<turn|>\n" +
-                    "<|turn>user\n Listen to the audio, identify the speaker’s voice, and describe it.\n<audio>" + result.BOM, model.Vocab.ShouldAddBOS);
+                await executor.ProcessPrompt(seq1, " <|turn>system\n you are a helpfull VLM assistant with vision and audio capabilities.\n<turn|>\n" +
+                    "<|turn>user\n Listen to the audio, identify the speaker’s voice gender and text from audio, answer strictly in JSON.\n" + result.BOM, model.Vocab.ShouldAddBOS);
                 await executor.ProcessMtmdEmbeds(seq1, result.embeds);
-                await executor.ProcessPrompt(seq1, result.EOM + "</audio>\n<turn|>\n<|turn>model\n<|channel>thought\nThinking");
+                await executor.ProcessPrompt(seq1, result.EOM + "\n<turn|>\n<|turn>model\n[");
 
                 InferenceParams inferenceParams = new InferenceParams()
                 {
                     MaxTokens = 1000,
                     AutoStopFromEOG = true,
                     DecodeSpecialTokens = true,
+                    SamplingPipeline = new TunableSamplerPipeline(new TunableSamplerPipelineSettings([], new GreedySampler())),
                     AntiPrompts = []
                 };
 
@@ -1154,27 +1171,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdImage_Gemma4_RandomTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -1231,34 +1228,10 @@ namespace Llama.csharp.IntegrationTest
             model.Dispose();
         }
 
-        #endregion
-
-        #region GEMMA4_Uni
-
         [Fact]
-        public async Task MtmdImage_Gemma4Uni_StandartTemplate_DecodeByLLM_Valid()
+        public async Task MtmdImage_Gemma4_MultipleImagesEncode_OnlyEncode_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -1268,7 +1241,191 @@ namespace Llama.csharp.IntegrationTest
                 ImageMaxTokens = 1000,
             };
 
-            IModelParams modelParams = new ModelParams(_gemma4UnimodelPath);
+            IModelParams modelParams = new ModelParams(_gemma4modelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+
+            // Placeholder image paths - to be replaced with actual image paths
+            List<string> imagePaths = new List<string>
+            {
+                _testImagePath1,
+                _testImagePath2,
+                _testImagePath3
+            };
+
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_gemma4mmprojPath, model, mtmdParams);
+
+                // Encode 3 images in a single request
+                var results = await ctx.EncodeImageFromPaths(imagePaths);
+
+                // Assert - verify we got 3 results
+                results.Should().HaveCount(3);
+
+                // Verify each result has BOM, EOM and embeds task
+                foreach (var result in results)
+                {
+                    result.BOM.Should().NotBeNullOrEmpty();
+                    result.EOM.Should().NotBeNullOrEmpty();
+                    result.embeds.Should().NotBeNull();
+
+                    // Wait for embeds to be calculated
+                    LlamaEmbedding[] embeds = await result.embeds;
+                    embeds.Should().NotBeNull();
+                    embeds.Length.Should().BeGreaterThan(0);
+                }
+
+                ctx.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task MtmdImage_Gemma4_MultipleImagesEncodeAndBatchProcess_Valid()
+        {
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+            };
+
+            IModelParams modelParams = new ModelParams(_gemma4modelPath);
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+
+            // Placeholder image paths - to be replaced with actual image paths
+            List<string> imagePaths = new List<string>
+            {
+                _testImagePath1,
+                _testImagePath2,
+                _testImagePath3
+            };
+
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_gemma4mmprojPath, model, mtmdParams);
+
+                // Encode 3 images in a single request
+                var encodeResults = await ctx.EncodeImageFromPaths(imagePaths);
+
+                ContextParams ctxParams = new ContextParams() { ContextSize = 12000, SeqMax = 10 };
+
+                LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
+
+                // Create 3 separate sequences for batch processing
+                LLamaSeqId seq1 = await executor.CreateSequence();
+                LLamaSeqId seq2 = await executor.CreateSequence();
+                LLamaSeqId seq3 = await executor.CreateSequence();
+
+                List<LLamaSeqId> seqIds = new List<LLamaSeqId> { seq1, seq2, seq3 };
+                List<LlamaEmbedding[]> embedsList = new List<LlamaEmbedding[]>();
+
+                // Process first image in seq1
+                var result1 = encodeResults[0];
+                var result2 = encodeResults[1];
+                var result3 = encodeResults[2];
+
+                await executor.ProcessPrompt(seq1, "<system>\n you are a helpfull assistant\n</system>\n<user>\n " + result1.BOM, model.Vocab.ShouldAddBOS);
+
+                // Share the prefix
+                await executor.CopySeqPrefixTo(seq1, [seq2, seq3], (LLamaPos)(await executor.GetSequenceNextDecodedTokenPos(seq1)));
+
+                // Collect mtmd embeds
+                embedsList.Add(await result1.embeds);
+                embedsList.Add(await result2.embeds);
+                embedsList.Add(await result3.embeds);
+
+                // Batch process mtmd embeds to specified sequences
+                var embedsTasksDict = await executor.ProcessMtmdEmbeds(seqIds, embedsList);
+
+                // Wait for all embed processing tasks to complete (for test I use Task.WhenAll)
+                await Task.WhenAll(embedsTasksDict.Values);
+
+                // Register different questions in seqs
+                Dictionary<LLamaSeqId, Task> prefilltasks = await executor.ProcessPrompt(
+                    [seq1, seq2, seq3],
+                    [
+                    result1.EOM + "What colors are on the image? </user>\n<assistant>\n",
+                    result2.EOM + "What test is on the image? </user>\n<assistant>\n",
+                    result3.EOM + "What is on the image? </user>\n<assistant>\n"
+                    ]
+                );
+
+                //(for test I use Task.WhenAll)
+                await Task.WhenAll(prefilltasks.Values);
+
+                // Generate text for each sequence
+                InferenceParams inferenceParams = new InferenceParams()
+                {
+                    MaxTokens = 200,
+                    AutoStopFromEOG = true,
+                    DecodeSpecialTokens = true,
+                    AntiPrompts = ["</assistant>"]
+                };
+
+                // Generate for seq1
+                Channel<string> ch1 = await executor.Generate(seq1, inferenceParams);
+                string genText1 = "";
+                // Generate for seq2
+                Channel<string> ch2 = await executor.Generate(seq2, inferenceParams);
+                string genText2 = "";
+                // Generate for seq3
+                Channel<string> ch3 = await executor.Generate(seq3, inferenceParams);
+                string genText3 = "";
+
+                await foreach (var text in ch1.Reader.ReadAllAsync())
+                {
+                    genText1 += text;
+                }
+                _output.WriteLine("Seq1 result: " + genText1);
+
+                await foreach (var text in ch2.Reader.ReadAllAsync())
+                {
+                    genText2 += text;
+                }
+                _output.WriteLine("Seq2 result: " + genText2);
+
+                await foreach (var text in ch3.Reader.ReadAllAsync())
+                {
+                    genText3 += text;
+                }
+                _output.WriteLine("Seq3 result: " + genText3);
+
+                ctx.Dispose();
+                executor.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        #endregion
+
+        #region GEMMA4_Uni
+
+        [Fact]
+        public async Task MtmdImage_Gemma4Uni_StandartTemplate_DecodeByLLM_Valid()
+        {
+            LibraryInitHelper.InitializeCpuVulkanAndMtmd(_baseDllPath, _сpuBackend);
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+            };
+
+            IModelParams modelParams = new ModelParams(_gemma4UnimodelPath) { GpuLayerCount = 0 };
             LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
             // Act
             var act = async () =>
@@ -1318,27 +1475,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdAudio_Gemma4Uni_SemistandartTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -1363,7 +1500,7 @@ namespace Llama.csharp.IntegrationTest
                 LLamaSeqId seq1 = await executor.CreateSequence();
 
                 await executor.ProcessPrompt(seq1, " <|turn>system\n you are a helpfull VLM assistant with vision and audio capabilities. Vision in <vision></vision> tags and audio in <audio></audio> tags, respectively. \n<turn|>\n" +
-                    "<|turn>user\n Listen to the audio, identify the speaker’s voice, and describe it.\n<audio>" + result.BOM, model.Vocab.ShouldAddBOS); //не могут описывать голос (угадывают не всегда), извлекают только текст, и то хуже qwen3asr
+                    "<|turn>user\n Listen to the audio, identify the speaker’s voice, and describe it.\n<audio>" + result.BOM, model.Vocab.ShouldAddBOS);
                 await executor.ProcessMtmdEmbeds(seq1, result.embeds);
                 await executor.ProcessPrompt(seq1, result.EOM + "</audio>\n<turn|>\n<|turn>model\n<|channel>thought\nThinking");
 
@@ -1397,27 +1534,7 @@ namespace Llama.csharp.IntegrationTest
         [Fact]
         public async Task MtmdImage_Gemma4Uni_RandomTemplate_DecodeByLLM_Valid()
         {
-            #region init
-            var requiredFiles = new[]
-            {
-                Path.Combine(_baseDllPath, "llama.dll"),
-                Path.Combine(_baseDllPath, "ggml.dll"),
-                Path.Combine(_baseDllPath, "ggml-base.dll"),
-                Path.Combine(_baseDllPath, _сpuBackend),
-                Path.Combine(_baseDllPath, "mtmd.dll"),
-            };
-
-            foreach (var file in requiredFiles)
-            {
-                File.Exists(file).Should().BeTrue($"Required native library {file} not found");
-            }
-
-            LlamaCpp.Initialize(requiredFiles[0],
-                                requiredFiles[1],
-                                requiredFiles[2],
-                               [requiredFiles[3]],
-                                requiredFiles[4]);
-            #endregion
+            LibraryInitHelper.InitializeCpuAndMtmd(_baseDllPath, _сpuBackend);
 
             // Arrange
             var mtmdParams = new MtmdParams
@@ -1474,6 +1591,185 @@ namespace Llama.csharp.IntegrationTest
             model.Dispose();
         }
 
+        [Fact]
+        public async Task MtmdImage_Gemma4Uni_MultipleImagesEncode_OnlyEncode_Valid()
+        {
+            LibraryInitHelper.InitializeCpuVulkanAndMtmd(_baseDllPath, _сpuBackend);
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+            };
+
+            IModelParams modelParams = new ModelParams(_gemma4UnimodelPath) { GpuLayerCount = 0 };
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+
+            // Placeholder image paths - to be replaced with actual image paths
+            List<string> imagePaths = new List<string>
+            {
+                _testImagePath1,
+                _testImagePath2,
+                _testImagePath3
+            };
+
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_gemma4UnimmprojPath, model, mtmdParams);
+
+                // Encode 3 images in a single request
+                var results = await ctx.EncodeImageFromPaths(imagePaths);
+
+                // Assert - verify we got 3 results
+                results.Should().HaveCount(3);
+
+                // Verify each result has BOM, EOM and embeds task
+                foreach (var result in results)
+                {
+                    result.BOM.Should().NotBeNullOrEmpty();
+                    result.EOM.Should().NotBeNullOrEmpty();
+                    result.embeds.Should().NotBeNull();
+
+                    // Wait for embeds to be calculated
+                    LlamaEmbedding[] embeds = await result.embeds;
+                    embeds.Should().NotBeNull();
+                    embeds.Length.Should().BeGreaterThan(0);
+                }
+
+                ctx.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
+
+        [Fact]
+        public async Task MtmdImage_Gemma4Uni_MultipleImagesEncodeAndBatchProcess_Valid()
+        {
+            LibraryInitHelper.InitializeCpuVulkanAndMtmd(_baseDllPath, _сpuBackend);
+
+            // Arrange
+            var mtmdParams = new MtmdParams
+            {
+                UseGpu = false,
+                Threads = 8,
+                ImageMaxTokens = 1000,
+            };
+
+            IModelParams modelParams = new ModelParams(_gemma4UnimodelPath) { GpuLayerCount = 0 };
+            LLamaWeights model = LLamaWeights.LoadFromFile(modelParams);
+
+            // Placeholder image paths - to be replaced with actual image paths
+            List<string> imagePaths = new List<string>
+            {
+                _testImagePath1,
+                _testImagePath2,
+                _testImagePath3
+            };
+
+            // Act
+            var act = async () =>
+            {
+                MtmdContext ctx = MtmdContext.CreateFromFile(_gemma4UnimmprojPath, model, mtmdParams);
+
+                // Encode 3 images in a single request
+                var encodeResults = await ctx.EncodeImageFromPaths(imagePaths);
+
+                ContextParams ctxParams = new ContextParams() { ContextSize = 12000, SeqMax = 10 };
+
+                LlamaExecutor executor = model.CreateExecutor(ctxParams, ctx.GetSpecification());
+
+                // Create 3 separate sequences for batch processing
+                LLamaSeqId seq1 = await executor.CreateSequence();
+                LLamaSeqId seq2 = await executor.CreateSequence();
+                LLamaSeqId seq3 = await executor.CreateSequence();
+
+                List<LLamaSeqId> seqIds = new List<LLamaSeqId> { seq1, seq2, seq3 };
+                List<LlamaEmbedding[]> embedsList = new List<LlamaEmbedding[]>();
+
+                // Process first image in seq1
+                var result1 = encodeResults[0];
+                var result2 = encodeResults[1];
+                var result3 = encodeResults[2];
+
+                await executor.ProcessPrompt(seq1, "<system>\n you are a helpfull assistant\n</system>\n<user>\n " + result1.BOM, model.Vocab.ShouldAddBOS);
+
+                // Share the prefix
+                await executor.CopySeqPrefixTo(seq1, [seq2, seq3], (LLamaPos)(await executor.GetSequenceNextDecodedTokenPos(seq1)));
+
+                // Collect mtmd embeds
+                embedsList.Add(await result1.embeds);
+                embedsList.Add(await result2.embeds);
+                embedsList.Add(await result3.embeds);
+
+                // Batch process mtmd embeds to specified sequences
+                var embedsTasksDict = await executor.ProcessMtmdEmbeds(seqIds, embedsList);
+
+                // Wait for all embed processing tasks to complete (for test I use Task.WhenAll)
+                await Task.WhenAll(embedsTasksDict.Values);
+
+                // Register different questions in seqs
+                Dictionary<LLamaSeqId, Task> prefilltasks = await executor.ProcessPrompt(
+                    [seq1, seq2, seq3],
+                    [
+                    result1.EOM + "What colors are on the image? </user>\n<assistant>\n",
+                    result2.EOM + "What test is on the image? </user>\n<assistant>\n",
+                    result3.EOM + "What is on the image? </user>\n<assistant>\n"
+                    ]
+                );
+
+                //(for test I use Task.WhenAll)
+                await Task.WhenAll(prefilltasks.Values);
+
+                // Generate text for each sequence
+                InferenceParams inferenceParams = new InferenceParams()
+                {
+                    MaxTokens = 200,
+                    AutoStopFromEOG = true,
+                    DecodeSpecialTokens = true,
+                    AntiPrompts = ["</assistant>"]
+                };
+
+                // Generate for seq1
+                Channel<string> ch1 = await executor.Generate(seq1, inferenceParams);
+                string genText1 = "";
+                // Generate for seq2
+                Channel<string> ch2 = await executor.Generate(seq2, inferenceParams);
+                string genText2 = "";
+                // Generate for seq3
+                Channel<string> ch3 = await executor.Generate(seq3, inferenceParams);
+                string genText3 = "";
+
+                await foreach (var text in ch1.Reader.ReadAllAsync())
+                {
+                    genText1 += text;
+                }
+                _output.WriteLine("Seq1 result: " + genText1);
+
+                await foreach (var text in ch2.Reader.ReadAllAsync())
+                {
+                    genText2 += text;
+                }
+                _output.WriteLine("Seq2 result: " + genText2);
+
+                await foreach (var text in ch3.Reader.ReadAllAsync())
+                {
+                    genText3 += text;
+                }
+                _output.WriteLine("Seq3 result: " + genText3);
+
+                ctx.Dispose();
+                executor.Dispose();
+            };
+
+            await act.Should().NotThrowAsync();
+
+            model.Dispose();
+        }
         #endregion
     }
 }

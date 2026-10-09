@@ -1,9 +1,4 @@
 ﻿using Llama.csharp.Native;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Llama.csharp
 {
@@ -11,8 +6,8 @@ namespace Llama.csharp
     {
         public Memory<float> Data { get; }
         public LlamaEmbeddingType Type { get; }
-        
-        // установлено если MROPE модель. позиция относительная - относительно первого эмбеддинга картинки, перед занесением в llama_decode надо добавить колво обрабтанных токенов
+
+        // set if MROPE model. The position here is relative - relative to the first embedding for an image/audio; before passing to llama_decode, the number of processed tokens must be added to it
         internal MtmdDecoderPosNative? Pos { get; }
 
         internal bool UseNonCausal { get; }

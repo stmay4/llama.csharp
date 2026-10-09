@@ -58,7 +58,7 @@ namespace Llama.csharp.Extensions
 
             result.swa_full = true;
 
-            result.kv_unified = @params.KVunified ?? result.kv_unified; // если false то разделяет весь пул KV на колво последовательностей
+            result.kv_unified = @params.KVunified ?? result.kv_unified; // if false, splits the entire KV pool by the number of sequences
         }
 
         private static int Threads(int? value)

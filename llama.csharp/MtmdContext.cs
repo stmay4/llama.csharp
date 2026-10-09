@@ -174,6 +174,11 @@ namespace Llama.csharp
 
         #endregion
 
+        #region VideoRegistration
+        //not now
+        //если битмапы не складываются в чанк? или будет несколько чанков с объединенными
+        #endregion
+
         #region AudioRegistration
         /// <summary>
         /// Читает WAV, конвертирует в моно встроенным StereoToMonoSampleProvider,

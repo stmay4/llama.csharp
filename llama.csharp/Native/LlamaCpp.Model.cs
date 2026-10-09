@@ -245,7 +245,7 @@ namespace Llama.csharp.Native
         private unsafe delegate LLamaVocabNative* llama_model_get_vocab(SafeLlamaModelHandle model);
 
         /// <summary>
-        /// Возвращает базовые параметры для загрузки модели
+        /// Returns the base parameters for loading the model
         /// </summary>
         /// <returns></returns>
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]

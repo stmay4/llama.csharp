@@ -2,13 +2,16 @@
   <img src="./assets/llamacsharp_light.svg" alt="llamacsharp Logo" width="500"/>
 </p>
 
-[RU-версия README](./README_RU.md)
-
 # llama.csharp
 
-**llama.csharp** is a .NET wrapper library for [llama.cpp](https://github.com/ggml-org/llama.cpp) that provides batch processing (Continuous batching) and context sequence cache management.
+**llama.csharp** is a wrapper library over [llama.cpp](https://github.com/ggml-org/llama.cpp) for .NET, providing batch processing (Continuous batching) and work with sequence context cache.
 
-The project's Telegram group — [Local AI Models](https://t.me/+5u17pJAAlSJlN2Zi) — for receiving update notifications, discussions, questions, usage examples, etc. It is also a shared group for all projects implemented by me (and possibly not only by me in the future) based on this library.
+Project Telegram group - [Local AI Models](https://t.me/+5u17pJAAlSJlN2Zi) for receiving update notifications, communication, questions, usage examples, etc. It is also a common group with all projects implemented by me (and maybe in the future not only by me) based on this library.
+
+## What is it for?
+A wrapper over the sequence cache from llama.cpp for manual control of batch processing. It can be useful when working simultaneously with many long contexts, or for controlled sharing of the beginning of a context.
+
+Slots do the work automatically. Here you allocate sequences, split them, clear them (and in future updates dump them to disk) under the control of your code.
 
 ## Usage example
 
@@ -17,16 +20,16 @@ For a simple chat *(slightly shortened code)*
 ```csharp
 var requiredFiles = new[] { *paths to engine files*};
 
-// Initialize the library
+// Library initialization
 LlamaCpp.Initialize(requiredFiles[0],
                     requiredFiles[1],
                     requiredFiles[2],
                     [requiredFiles[3]]);
-// Load the model
+// Load model
 ModelParams parametres = new ModelParams(_modelPath) 
 {
     //GpuLayerCount = 999, // Can be set when using GPU
-    //TensorBufferOverrides = [new TensorBufferOverride("blk\\.[0-35].*exps.*", "CPU")], // If using GPU, for MOE models you can offload experts to CPU. In this example for layers 0-35
+    //TensorBufferOverrides = [new TensorBufferOverride("blk\\.[0-35].*exps.*", "CPU")], // If GPU is used, for MoE models you can offload experts to CPU. In this example for layers 0-35
     //TensorBufferOverrides = [new TensorBufferOverride(".*exps.*", "CPU")], // Here all experts
     //... other settings (see documentation for details)
 };
@@ -36,16 +39,16 @@ LLamaWeights model = LLamaWeights.LoadFromFile(parametres);
 ContextParams ctxParams = new ContextParams()
 {
     ContextSize = 16000,
-    //SeqMax = 1, // number of sequences available to create, default is already one
-    //NoKqvOffload = false // If using GPU and enough VRAM, you can offload the context to GPU
+    //SeqMax = 1, // number of sequences available for creation; by default there is one anyway
+    //NoKqvOffload = false // If GPU is used and there is enough VRAM, you can offload the context to GPU
     //... other settings (see documentation for details)
 };
 LlamaExecutor executor = model.CreateExecutor(ctxParams);
 
-// Create a sequence (one is enough for a simple chat)
+// Create a sequence (for a simple chat one is enough)
 LLamaSeqId mainSeq = await executor.CreateSequence();
 
-// The message that will be loaded into the sequence context. Contains arbitrarily placed role tags
+// Message that will be loaded into the sequence context. Contains arbitrarily placed role tags
 string startPrefill = "<system>\r\nYou are an expert translator. Before translating, you must analyze the input in a <think> block.\r\n</system>\r\n" +
     "<user>\r\n今天天气不错，我们去公园散步吧\r\n</user>\r\n" +
     "<assistant>\r\n<think>\r\nThe input is a casual Chinese sentence. " +
@@ -57,14 +60,14 @@ string startPrefill = "<system>\r\nYou are an expert translator. Before translat
     "The instruction itself is in Chinese: 请 (please), 把这份文件 (this document), 翻译成英文 (translate into English), 注意保持正式语气 (pay attention to maintaining a formal tone). " +
     "Since the user only provided the instruction and not the actual document, I should acknowledge the request and ask for the document text.\r\n</think>\r\n" +
     "Please share the document text you would like me to translate, and I will ensure a formal tone in the English version.\r\n</assistant>";
-// you can add the model's EOS token after '</assistant>', obtained from model.Vocab.LLamaTokenToString(model.Vocab.EOS, true) if needed
+// you can add after '</assistant>' the model EOS token obtained from model.Vocab.LLamaTokenToString(model.Vocab.EOS, true) if necessary
 
-// Fill the sequence context. No tokens are added to the input internally, only BOS if set in the third argument (default false)
+// Fill the sequence context. No tokens are added to the input inside, only BOS if set in the third argument (default false)
 await executor.ProcessPrompt(mainSeq, startPrefill, model.Vocab.ShouldAddBOS);
 
 Console.WriteLine(startPrefill);
 
-// Inference parameters
+// Generation parameters
 InferenceParams inferenceParams = new InferenceParams()
 {
     MaxTokens = -1,
@@ -77,7 +80,7 @@ InferenceParams inferenceParams = new InferenceParams()
                 // List of samplers in order of application to logits
                 new TopKSampler() { K=30 }
             ],
-            // Finalizing sampler: Greedy, Distribution, or Mirostat2
+            // Finalizing sampler: Greedy, Distribution or Mirostat2
             new Mirostat2Sampler() { Seed = 256}
         )
     )
@@ -88,18 +91,18 @@ string input = "";
 // Chat loop
 while (true)
 {
-    Console.Write("Me: "); // not sent to the model, visual
+    Console.Write("Me: "); // not sent to model, visual only
     *getting input, checking for loop exit*
 
-    // Text to be sent to the sequence context
+    // Text sent to sequence context
     string prefillInput = "\r\n<user> " + input + " </user>\r\n<assistant>\r\n<think>";
 
-    Console.Write("\r\nNot me):\r\n<think>"); // not sent to the model, visual
+    Console.Write("\r\nNot me):\r\n<think>"); // not sent to model, visual only
 
-    // Fill user input into the sequence context
+    // Fill user input into sequence context
     await executor.ProcessPrompt(mainSeq, prefillInput);
 
-    // Get the generation channel for the sequence, pass only its id and inference parameters
+    // Get generation channel for the sequence, pass only its id and generation parameters
     Channel<string> ch = await executor.Generate(mainSeq, inferenceParams);
 
     await foreach (string token in ch.Reader.ReadAllAsync())
@@ -108,10 +111,11 @@ while (true)
     }
 }
 
-executor.Dispose(); // Release the executor
-model.Dispose(); // and the model
+executor.Dispose(); // Dispose executor
+model.Dispose(); // and model
 ```
-For batch generation with a shared prefix *(significantly shortened code)*
+
+For batch generation by a common prefix (greatly shortened code)
 
 ```csharp
     LlamaCpp.Initialize(...);
@@ -132,18 +136,18 @@ For batch generation with a shared prefix *(significantly shortened code)*
 
     string startPrefill = *same as above*;
 
-    // Fill one of the sequences with the starting prefix (any one)
+    // Fill one of the sequences with the start prefill (any)
     await executor.ProcessPrompt(seq1, startPrefill, model.Vocab.ShouldAddBOS);
 
-    // Get the position of the next token for the filled sequence
+    // Get the next token position for the filled sequence
     LLamaPos endPos = await executor.GetSequenceNextDecodedTokenPos(seq1);
 
-    // Share the cache of seq1 with seq2 and seq3 up to the specified sequence position
+    // Split seq1 cache with seq2 and seq3 up to the specified sequence position
     await executor.CopySeqPrefixTo(seq1, [seq2, seq3], endPos);
 
     Console.WriteLine(startPrefill);
 
-    // Data of the three generation streams for display
+    // Data of three generation streams for display
     var contexts = new ConcurrentDictionary<LLamaSeqId, string>()
     {
         [seq1] = "",
@@ -158,122 +162,129 @@ For batch generation with a shared prefix *(significantly shortened code)*
         "🤖 模块五：AI赋能科研：从AlphaFold到科学大模型\n人工智能正推动科学研究范式向“数据驱动+智能推演”转型DeepMind的AlphaFold成功预测超2亿种蛋白质三维结构，将结构生物学研究效率提升数个数量级。如今，面向材料选、气候模拟、催化反应与药物设计的科学大模型可自动解析文献、生成可验证假设并优化实验路径。AI并非替代科家，而是作为“高通量协作者”压缩试错周期，加速跨学科知识融合。\n📌 核心提示：人机协同科研已成常态，模型解释性与科学因果推断是下一阶段重点。"
     ];
 
-    // generation tasks simulating arrival at different times via Delay, also containing one additional user query each after translation completes
+    // generation tasks with simulated arrival at different times via Delay, also contain one more user request after translation completes
     Task gen1 = GenerateAsync(executor, seq1, queries[0], contexts, 3000);
     Task gen2 = GenerateAsync(executor, seq2, queries[1], contexts, 1500);
     Task gen3 = GenerateAsync(executor, seq3, queries[2], contexts, 0);
 
     List<Task> tasks = [gen1, gen2, gen3];
 
-    *Table from Spectre.Console for displaying the generation of three texts simultaneously*
+    *Spectre.Console table for displaying generation of three texts simultaneously*
 }
 
-// Method for generating two rounds with a delay
+// Method for generating two rounds with delay
 static async Task GenerateAsync(
     LlamaExecutor executor,
     LLamaSeqId seqId,
-    string text, // Chinese text for translation
+    string text, // text in Chinese for translation
     ConcurrentDictionary<LLamaSeqId, string> contexts,
     int delay)
 {
-    // Inference parameters
+    // Generation parameters
     InferenceParams inferenceParams = new InferenceParams() {*same ...*};
 
     List<string> queries = new List<string>();
     queries.Add(text);
-    queries.Add("thanks"); // add a second query
+    queries.Add("thanks"); // add second request
 
     string input = queries[0];
 
-    // chat of two queries: translation and thanks
+    // chat of two requests: translation and thanks
     foreach (var query in queries)
     {
-        // simulate queries arriving at different times
+        // simulate requests arriving at different times
         await Task.Delay(delay);
 
         string prefillInput = "\r\n<user> " + query + "</user> \r\n <assistant> <think>";
-        contexts[seqId] += prefillInput; // for display in the table
+        contexts[seqId] += prefillInput; // for display in table
 
         await executor.ProcessPrompt(seqId, prefillInput, false, true);
 
         await foreach (string token in (await executor.Generate(seqId, inferenceParams)).Reader.ReadAllAsync())
         {
-            contexts[seqId] += token;  // for display in the table
+            contexts[seqId] += token;  // for display in table
         }
     }
 
 }
 ```
 
-Work with sequences can be performed independently (although there are also functions for working with a batch of sequences at once), each can be individually filled with an input and generation can be launched separately for each, while the **batch** for model processing is assembled at each processing step (the `DecodingLoop()` method of `LlamaExecutor`) **from the currently available generation and filling tasks** of one executor (some call this Continuous Batching).
+Work with sequences can happen separately (although there are also functions for working with a batch of sequences at once); you can enter prefill into each separately and start generation separately for each, while the **batch** for model processing is assembled at each processing step (the DecodingLoop() method of LlamaExecutor) **from the generation and fill tasks currently available** of one executor (some call this Continuous Batching).
 
-**Sequences can share KV-cache cells among themselves** (usually the beginning of the sequence for GPT). When using `CopySeqPrefixTo`, the sequence to which the cache is shared is completely cleared and begins to reference a chunk of the cache of another sequence (this also saves context cache: if three sequences of 2000 tokens each share 1500 common ones, then the actual cache used is only 1500 + 3*500 = 3000 instead of 6000). After sharing the cache, sequences can still be processed independently; deleting one of the sequences will not clear the shared cache (the cache is cleared when no one references it).
+**Sequences can share KV cache cells of the context** (usually the beginning of the sequence for GPT). When using CopySeqPrefixTo, the sequence into which we split the cache is completely cleared and begins to reference a piece of another sequence's cache (this also saves context cache: if three sequences of 2000 tokens share 1500 common ones, then only 1500 + 3*500 = 3000 cache is actually occupied instead of 6000). After splitting the cache, sequences can also be processed separately; deleting one of the sequences will not clear the shared cache (the cache will be cleared when no one references it).
 
-More details in the [documentation](./doc/PublicDoc_EN.md).
+More details in [documentation](./doc/PublicDoc_RU.md).
 
 <p align="center">
   <img src="./assets/BatchGen.gif" alt="batch demo" width="1000"/>
 </p>
 
-Full example code can be found in the **test_program** subproject of the repository in the methods `SimpleChat` and `BatchGenerator`. There are also other examples and more will be added.
+Full example code is in the **test_program** subproject of the repository in the SimpleChat and BatchGenerator methods. There are also other examples there, and more will be added.
 
-## Public API Documentation
-[Documentation](./doc/PublicDoc_EN.md) contains a description of the functions of the main class for working with model contexts (`LlamaExecutor`) and other data necessary for their use.
+## Public interface documentation
+[Documentation](./doc/PublicDoc_RU.md) contains a description of the functions of the main class for working with model contexts, LlamaExecutor, and other data needed to use them.
 
-The integration tests in the **IntegrationTest** subproject provide additional usage examples and verify that sequence state remains consistent under intentionally unusual usage scenarios.
+In the integration tests of the **IntegrationTest** subproject there are additional examples of usage and checks for breaking sequence state under deliberately strange usage scenarios.
 
 ## Adding to a project
-The source files of the library, without test and example subprojects, with support for the required set of llama.cpp versions, can be downloaded as an archive from [releases](https://github.com/stmay4/llama.csharp/releases).
+The library source files without test and example subprojects, with support for the required list of llama.cpp versions, can be downloaded as an archive from [releases](https://github.com/stmay4/llama.csharp/releases).
 
-The engine files needed to initialize the library in code can be downloaded from the official [releases](https://github.com/ggml-org/llama.cpp/releases) of the llama.cpp project and specified in the initialization method (details in the [documentation](./doc/PublicDoc_EN.md)).
+The engine files for initializing the library in code can be downloaded from the official [releases](https://github.com/ggml-org/llama.cpp/releases) of the llama.cpp project and specified in the init method (see [documentation](./doc/PublicDoc_RU.md) for details).
 
 ```csharp
-// Library initialization (loading the engine and binding functions)
+// Library initialization (loading engine and binding functions)
 LlamaCpp.Initialize(
     "./llama/llama.dll", 
     "./llama/ggml.dll", 
     "./llama/ggml-base.dll",
-    [ // In this case, backends are loaded: CPU and Vulkan GPU
+    [ // In this case the backends loaded are: CPU and Vulkan GPU
         "./llama/ggml-cpu-alderlake.dll",
         "./llama/ggml-vulkan.dll"
-    ]
+    ],
+    "./llama/mtmd.dll" // optional, for multimodal
 );
 ```
 
-The library is written using .NET 8
+The library is written using .NET 10 (previous versions 1.3.1 and below use .NET 8)
 
 Dependencies:<br>
-PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" with its SpanOwner (may be replaced with ArrayPool<T>.Shared from System)
+"CommunityToolkit.HighPerformance" Version="8.4.0"
+
+For multimodal since 1.4.0, the following were added:<br>
+"NAudio.Core" Version="3.0.1"<br>
+"SixLabors.ImageSharp" Version="2.1.13"<br>
+
+
 
 ## Plans
 
-- Keep up to date with the latest llama.cpp releases
-- Support for multimodal LLMs (audio and images): functions for tokenizing multimodal input and filling the context with such tokens
-- Adding an embeddings retrieval function (possibly, if a flag is set to true, obtaining them together with logits — needs further thought)
-- Support for saving sequence states (and context state in general?) to enable offloading part of the sequences to memory at runtime when context cache is insufficient
+- Update to the latest versions of llama.cpp (sometimes ✅)
+- Support for multimodal LLMs (audio and images) ✅ (video still needs to be added)
+- Add embedding retrieval function (possibly, if a flag is set to true, retrieve together with logits - to think about) 
+- Support for saving sequence states (and context as a whole?) to be able to offload part of sequences to memory during operation when context cache is insufficient
 - Support for speculative decoding (MTP, eagle, etc.)
-- Support for LoRA adapters (for now, adapters can be merged into the model)
+- Support for LoRA adapters (for now adapters can be merged into the model) 
 
 ## Projects
 Projects using the library:
 
 ---
 
-*(the repository is currently private, preparation for opening is in progress)*<br>
+*(currently the repository is private, pending)*<br>
 <img src="./assets/LaimIcon.png" alt="batch demo" width="15"/>  [**LAIM**](https://github.com/stmay4/LAIM) <br>
-Local server that provides programs on the computer with access to a GUI-configured list of LLMs via a low-level stateful API over named pipes, with functions for direct work with contexts and sequences from this library.<br>The project offers a ready-made integration library, Laim.Client, for the .NET platform.<br>A desktop GUI application for direct work with models — LAIMCHAT — is also under development.
+Local server for providing programs on the computer with access to a GUI-defined list of LLMs via a low-level stateful API over named channels with functions for direct work with context and sequences from this library.<br>The project offers a ready-made integration library Laim.Client for the .NET platform<br>Also in development is a desktop GUI program for direct work with models - LAIMCHAT
 
 <p align="center">
   <img src="./assets/LaimMainWindow.png" alt="batch demo" width="600"/>
   <img src="./assets/LAIMModelForm.png" alt="batch demo" width="800"/>
 </p>
 
-Problems solved: duplication of models in memory when loading the same one in different programs, separate configuration of model loading parameters in each program, and the lack of direct client interaction with context and batch processing in popular alternatives.
+Problems solved: duplication of models in memory when loading the same one in different programs, separate configuration of model loading parameters in each program, lack of direct client work with context and batch processing in popular analogues 
 
 ---
 
-To add your own projects to this section, write in Issues, send an email to stasmayorov2004@mail.ru, or post in the Telegram group under the topic Projects-Discussion.
+To add your projects to this section, write in Issues or to stasmayorov2004@mail.ru or in the Telegram group in the Projects-discussion topic.
 
 ## Thanks
-The project structure is based on [LlamaSharp](https://github.com/SciSharp/LLamaSharp).<br>
-Documentation and source code from [llama.cpp](https://github.com/ggml-org/llama.cpp) are used for development; release builds of [llama.cpp](https://github.com/ggml-org/llama.cpp) are used for running LLMs in production.
+The project structure is taken from [LlamaSharp](https://github.com/SciSharp/LLamaSharp).<br>
+For development, the documentation and source code of [llama.cpp](https://github.com/ggml-org/llama.cpp) are used; for working with LLMs in operation, release builds of [llama.cpp](https://github.com/ggml-org/llama.cpp) are used.

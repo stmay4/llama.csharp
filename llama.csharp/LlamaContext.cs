@@ -21,6 +21,11 @@ namespace Llama.csharp
         public int EmbeddingSize => NativeHandle.EmbeddingSize;
 
         /// <summary>
+        /// Dimension of input embedding vectors
+        /// </summary>
+        public int InputEmbeddingSize => NativeHandle.InputEmbeddingSize;
+
+        /// <summary>
         /// The context params set for this context
         /// </summary>
         public IContextParams Params { get; }

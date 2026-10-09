@@ -20,10 +20,10 @@ namespace Llama.csharp.IntegrationTest
     public class TestLlamaExecutor
     {
         private static readonly string _baseDllPath = @"D:\DownLoads\llama-b9756-bin-win-vulkan-x64"; // !set your path to the library!
-        private static readonly string _modelPath = @"D:\LLMmodels\qwen3b_4q.gguf"; // !set your model path! no hybrid or reccurent
+        private static readonly string _modelPath = @"D:\LLMmodels\Qwen_Qwen3-4B-Q4_K_M.gguf"; // !set your model path! no hybrid or reccurent
         private static readonly string _hybridModelPath = @"D:\LLMmodels\qwen35\Qwen3.5-2B-UD-Q6_K_XL.gguf"; // !set your model path! hybrid or reccurent
         private static readonly string _rwkvModelPath = @"D:\LLMmodels\rwkv7-2.9B-g1-Q5_K_M.gguf";
-        private static readonly string _moeModelPath = @"D:\LLMmodels\Kimi-VL-A3B-Thinking-2506-Q4_K_M.gguf"; // !set your MOE model path! MOE
+        private static readonly string _moeModelPath = @"D:\LLMmodels\Qwen_Qwen3-30B-A3B-Q4_K_M.gguf"; // !set your MOE model path! MOE
         private static readonly string _сpuBackend = "ggml-cpu-alderlake.dll"; // !set the best CPU backend for your PC here!
         private static readonly string _badCpuBackend = "ggml-cpu-x64.dll";
         private static readonly string _sseCpuBackend = "ggml-cpu-sse42.dll";

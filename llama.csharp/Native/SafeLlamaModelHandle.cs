@@ -33,6 +33,16 @@ namespace Llama.csharp.Native
         public int EmbeddingSize => LlamaCpp.Llama_ModelNEmbd(this);
 
         /// <summary>
+        /// Dimension of input embedding vectors
+        /// </summary>
+        public int InputEmbeddingSize => LlamaCpp.Llama_ModelNEmbdInput(this);
+
+        /// <summary>
+        /// Dimension of output embedding vectors
+        /// </summary>
+        public int OutputEmbeddingSize => LlamaCpp.Llama_ModelNEmbdOutput(this);
+
+        /// <summary>
         /// Get the size of this model in bytes
         /// </summary>
         public ulong SizeInBytes => LlamaCpp.Llama_ModelSize(this);

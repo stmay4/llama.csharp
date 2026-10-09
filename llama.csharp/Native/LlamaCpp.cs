@@ -16,6 +16,7 @@ namespace Llama.csharp.Native
         private static IntPtr _llamaHandle = IntPtr.Zero;
         private static IntPtr _ggmlHandle = IntPtr.Zero;
         private static IntPtr _ggmlBaseHandle = IntPtr.Zero;
+        private static IntPtr _mtmdHandle = IntPtr.Zero;
 
         #region LLAMA API functions
 
@@ -142,7 +143,7 @@ namespace Llama.csharp.Native
         /// </summary>
         /// <exception cref="DirectoryNotFoundException"></exception>
         /// <exception cref="DllNotFoundException"></exception>
-        public static void Initialize(string llamaPath, string ggmlPath, string ggmlBasePath, List<string> backendPaths)
+        public static void Initialize(string llamaPath, string ggmlPath, string ggmlBasePath, List<string> backendPaths, string? mtmdPath = null)
         {
             if (_initialized) return;
 
@@ -160,6 +161,12 @@ namespace Llama.csharp.Native
                 _llamaHandle = LoadNativeLibrary(llamaPath, "llama.cpp");
                 _ggmlHandle = LoadNativeLibrary(ggmlPath, "GGML");
                 _ggmlBaseHandle = LoadNativeLibrary(ggmlBasePath, "GGML Base");
+
+                if (mtmdPath != null)
+                {
+                    ValidateStringParameter(mtmdPath, nameof(mtmdPath));
+                    _mtmdHandle = LoadNativeLibrary(mtmdPath, "MTMD");
+                }
 
                 // Getting pointers to functions
                 _llama_max_devices = GetLibFunction<llama_max_devices>(_llamaHandle, "llama_max_devices");
@@ -181,6 +188,11 @@ namespace Llama.csharp.Native
                 LoadVocabFunctions();
                 LoadContextFunctions();
                 LoadSamplerFunctions();
+
+                if (_mtmdHandle != IntPtr.Zero)
+                {
+                    LoadMtmdFunctions();
+                }
 
 
                 // Loading backends. You only specify the backends you use, currently without auto selection
@@ -282,46 +294,56 @@ namespace Llama.csharp.Native
         }
 
         /// <summary>
+        /// <purpose> Verifies that the MTMD library has been initialized. </purpose>
+        /// </summary>
+        /// <exception cref="InvalidOperationException"></exception>
+        private static void EnsureMtmdInitialized()
+        {
+            if (_mtmdHandle == IntPtr.Zero || !_initialized)
+                throw new InvalidOperationException("First of all call LlamaCpp.Initialize() with MTMD dll/so");
+        }
+
+        /// <summary>
         /// <purpose> API function from llama.h - llama_max_devices </purpose>
         /// </summary>
         /// <returns> </returns>
-        public static long Llama_GetMaxDevices()
+        internal static long Llama_GetMaxDevices()
         {
             EnsureInitialized();
             return _llama_max_devices();
         }
 
-        public static nuint GGML_BackendDevCount()
+        internal static nuint GGML_BackendDevCount()
         {
             EnsureInitialized();
             return _ggml_backend_dev_count();
         }
 
-        public static IntPtr GGML_BackendDevGet(nuint i)
+        internal static IntPtr GGML_BackendDevGet(nuint i)
         {
             EnsureInitialized();
             return _ggml_backend_dev_get(i);
         }
 
-        public static IntPtr GGMLBase_BackendDevBufferType(IntPtr dev)
+        internal static IntPtr GGMLBase_BackendDevBufferType(IntPtr dev)
         {
             EnsureInitialized();
             return _ggmlbase_backend_dev_buffer_type(dev);
         }
 
-        public static IntPtr GGMLBase_BackendBuftName(IntPtr buft)
+        internal static IntPtr GGMLBase_BackendBuftName(IntPtr buft)
         {
             EnsureInitialized();
             return _ggmlbase_backend_buft_name(buft);
         }
 
-        public static bool Llama_SupportsMmap()
+        internal static bool Llama_SupportsMmap()
         {
             EnsureInitialized();
             return _llama_supports_mmap();
         }
 
-        public static bool Llama_SupportsMlock()
+        internal static bool Llama_SupportsMlock()
         {
             EnsureInitialized();
             return _llama_supports_mlock();

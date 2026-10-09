@@ -240,133 +240,133 @@ namespace Llama.csharp.Native
             _llama_token_to_piece = GetLibFunction<llama_token_to_piece>(_llamaHandle, "llama_token_to_piece");
         }
 
-        public static unsafe int Llama_VocabNTokens(LLamaVocabNative* vocab)
+        internal static unsafe int Llama_VocabNTokens(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_n_tokens(vocab);
         }
 
-        public static unsafe LLamaVocabType Llama_VocabType(LLamaVocabNative* vocab)
+        internal static unsafe LLamaVocabType Llama_VocabType(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_type(vocab);
         }
 
-        public static unsafe byte* Llama_VocabGetText(LLamaVocabNative* vocab, LLamaToken token)
+        internal static unsafe byte* Llama_VocabGetText(LLamaVocabNative* vocab, LLamaToken token)
         {
             EnsureInitialized();
             return _llama_vocab_get_text(vocab, token);
         }
 
-        public static unsafe float Llama_VocabGetScore(LLamaVocabNative* vocab, LLamaToken token)
+        internal static unsafe float Llama_VocabGetScore(LLamaVocabNative* vocab, LLamaToken token)
         {
             EnsureInitialized();
             return _llama_vocab_get_score(vocab, token);
         }
 
-        public static unsafe LLamaTokenAttr Llama_VocabGetAttr(LLamaVocabNative* vocab, LLamaToken token)
+        internal static unsafe LLamaTokenAttr Llama_VocabGetAttr(LLamaVocabNative* vocab, LLamaToken token)
         {
             EnsureInitialized();
             return _llama_vocab_get_attr(vocab, token);
         }
 
-        public static unsafe bool Llama_VocabIsEog(LLamaVocabNative* vocab, LLamaToken token)
+        internal static unsafe bool Llama_VocabIsEog(LLamaVocabNative* vocab, LLamaToken token)
         {
             EnsureInitialized();
             return _llama_vocab_is_eog(vocab, token);
         }
 
-        public static unsafe bool Llama_VocabIsControl(LLamaVocabNative* vocab, LLamaToken token)
+        internal static unsafe bool Llama_VocabIsControl(LLamaVocabNative* vocab, LLamaToken token)
         {
             EnsureInitialized();
             return _llama_vocab_is_control(vocab, token);
         }
 
-        public static unsafe LLamaToken Llama_VocabBos(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabBos(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_bos(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabEos(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabEos(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_eos(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabEot(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabEot(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_eot(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabSep(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabSep(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_sep(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabNl(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabNl(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_nl(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabPad(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabPad(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_pad(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabFimPre(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabFimPre(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_fim_pre(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabFimSuf(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabFimSuf(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_fim_suf(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabFimMid(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabFimMid(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_fim_mid(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabFimPad(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabFimPad(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_fim_pad(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabFimRep(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabFimRep(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_fim_rep(vocab);
         }
 
-        public static unsafe LLamaToken Llama_VocabFimSep(LLamaVocabNative* vocab)
+        internal static unsafe LLamaToken Llama_VocabFimSep(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_fim_sep(vocab);
         }
 
-        public static unsafe bool Llama_VocabGetAddBos(LLamaVocabNative* vocab)
+        internal static unsafe bool Llama_VocabGetAddBos(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_get_add_bos(vocab);
         }
 
-        public static unsafe bool Llama_VocabGetAddEos(LLamaVocabNative* vocab)
+        internal static unsafe bool Llama_VocabGetAddEos(LLamaVocabNative* vocab)
         {
             EnsureInitialized();
             return _llama_vocab_get_add_eos(vocab);
         }
 
-        public static unsafe int Llama_VocabTokenize(LLamaVocabNative* vocab, SpanOwner<byte> text, int text_len, LLamaToken[]? tokens, int n_max_tokens, bool add_special, bool parse_special)
+        internal static unsafe int Llama_VocabTokenize(LLamaVocabNative* vocab, SpanOwner<byte> text, int text_len, LLamaToken[]? tokens, int n_max_tokens, bool add_special, bool parse_special)
         {
             EnsureInitialized();
             unsafe
@@ -380,13 +380,13 @@ namespace Llama.csharp.Native
             
         }
 
-        public static unsafe int Llama_VocabDetokenize(LLamaVocabNative* vocab, LLamaToken* tokens, int nTokens, byte* textOut, int textLengthMax, bool removeSpecial, bool unparseSpecial)
+        internal static unsafe int Llama_VocabDetokenize(LLamaVocabNative* vocab, LLamaToken* tokens, int nTokens, byte* textOut, int textLengthMax, bool removeSpecial, bool unparseSpecial)
         {
             EnsureInitialized();
             return _llama_detokenize(vocab, tokens, nTokens, textOut, textLengthMax, removeSpecial, unparseSpecial);
         }
 
-        public static unsafe int Llama_VocabTokenToPiece(LLamaVocabNative* vocab, LLamaToken llamaToken, Span<byte> buffer, int lstrip, bool special)
+        internal static unsafe int Llama_VocabTokenToPiece(LLamaVocabNative* vocab, LLamaToken llamaToken, Span<byte> buffer, int lstrip, bool special)
         {
             // Handle invalid tokens
             if ((int)llamaToken < 0)

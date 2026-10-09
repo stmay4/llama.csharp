@@ -110,6 +110,22 @@ namespace Llama.csharp.Native
         private delegate int llama_model_n_embd(SafeLlamaModelHandle model);
 
         /// <summary>
+        /// Get the dimension of input embedding vectors from this model
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int llama_model_n_embd_inp(SafeLlamaModelHandle model);
+
+        /// <summary>
+        /// Get the dimension of output embedding vectors from this model
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int llama_model_n_embd_out(SafeLlamaModelHandle model);
+
+        /// <summary>
         /// Get the number of layers in this model
         /// </summary>
         /// <param name="model"></param>
@@ -229,7 +245,7 @@ namespace Llama.csharp.Native
         private unsafe delegate LLamaVocabNative* llama_model_get_vocab(SafeLlamaModelHandle model);
 
         /// <summary>
-        /// Возвращает базовые параметры для загрузки модели
+        /// Returns the base parameters for loading the model
         /// </summary>
         /// <returns></returns>
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -250,6 +266,8 @@ namespace Llama.csharp.Native
         private static llama_n_vocab                     _llama_n_vocab;
         private static llama_model_n_ctx_train           _llama_model_n_ctx_train;
         private static llama_model_n_embd                _llama_model_n_embd;
+        private static llama_model_n_embd_inp            _llama_model_n_embd_inp;
+        private static llama_model_n_embd_out            _llama_model_n_embd_out;
         private static llama_model_n_layer               _llama_model_n_layer;
         private static llama_model_n_head                _llama_model_n_head;
         private static llama_model_n_head_kv             _llama_model_n_head_kv;
@@ -297,6 +315,8 @@ namespace Llama.csharp.Native
             _llama_n_vocab = GetLibFunction<llama_n_vocab>(_llamaHandle, "llama_n_vocab");
             _llama_model_n_ctx_train = GetLibFunction<llama_model_n_ctx_train>(_llamaHandle, "llama_model_n_ctx_train");
             _llama_model_n_embd = GetLibFunction<llama_model_n_embd>(_llamaHandle, "llama_model_n_embd");
+            _llama_model_n_embd_inp = GetLibFunction<llama_model_n_embd_inp>(_llamaHandle, "llama_model_n_embd_inp");
+            _llama_model_n_embd_out = GetLibFunction<llama_model_n_embd_out>(_llamaHandle, "llama_model_n_embd_out");
             _llama_model_n_layer = GetLibFunction<llama_model_n_layer>(_llamaHandle, "llama_model_n_layer");
             _llama_model_n_head = GetLibFunction<llama_model_n_head>(_llamaHandle, "llama_model_n_head");
             _llama_model_n_head_kv = GetLibFunction<llama_model_n_head_kv>(_llamaHandle, "llama_model_n_head_kv");
@@ -312,131 +332,143 @@ namespace Llama.csharp.Native
             _llama_model_get_vocab = GetLibFunction<llama_model_get_vocab>(_llamaHandle, "llama_model_get_vocab");
         }
 
-        public static LLamaModelParams Llama_ModelDefaultParams()
+        internal static LLamaModelParams Llama_ModelDefaultParams()
         {
             EnsureInitialized();
             return _llama_model_default_params();
         }
-        public static LLamaRopeType Llama_ModelRopeType(SafeLlamaModelHandle model)
+        internal static LLamaRopeType Llama_ModelRopeType(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_rope_type(model);
         }
 
-        public static int Llama_ModelNContextTrain(SafeLlamaModelHandle model)
+        internal static int Llama_ModelNContextTrain(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_n_ctx_train(model);
         }
-        public static float Llama_ModelRopeFreqScaleTrain(SafeLlamaModelHandle model)
+        internal static float Llama_ModelRopeFreqScaleTrain(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_rope_freq_scale_train(model);
         }
 
-        public static int Llama_ModelNEmbd(SafeLlamaModelHandle model)
+        internal static int Llama_ModelNEmbd(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_n_embd(model);
         }
 
-        public static ulong Llama_ModelSize(SafeLlamaModelHandle model)
+        internal static int Llama_ModelNEmbdInput(SafeLlamaModelHandle model)
+        {
+            EnsureInitialized();
+            return _llama_model_n_embd_inp(model);
+        }
+
+        internal static int Llama_ModelNEmbdOutput(SafeLlamaModelHandle model)
+        {
+            EnsureInitialized();
+            return _llama_model_n_embd_out(model);
+        }
+
+        internal static ulong Llama_ModelSize(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_size(model);
         }
 
-        public static ulong Llama_ModelNParams(SafeLlamaModelHandle model)
+        internal static ulong Llama_ModelNParams(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_n_params(model);
         }
 
-        public static int Llama_ModelNLayer(SafeLlamaModelHandle model)
+        internal static int Llama_ModelNLayer(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_n_layer(model);
         }
 
-        public static int Llama_ModelNHead(SafeLlamaModelHandle model)
+        internal static int Llama_ModelNHead(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_n_head(model);
         }
 
-        public static int Llama_ModelNHeadKV(SafeLlamaModelHandle model)
+        internal static int Llama_ModelNHeadKV(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_n_head_kv(model);
         }
 
-        public static bool Llama_ModelHasEncoder(SafeLlamaModelHandle model)
+        internal static bool Llama_ModelHasEncoder(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_has_encoder(model);
         }
 
-        public static bool Llama_ModelHasDecoder(SafeLlamaModelHandle model)
+        internal static bool Llama_ModelHasDecoder(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_has_decoder(model);
         }
 
-        public static bool Llama_ModelIsRecurrent(SafeLlamaModelHandle model)
+        internal static bool Llama_ModelIsRecurrent(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_is_recurrent(model);
         }
 
-        public static bool Llama_ModelIsHybrid(SafeLlamaModelHandle model)
+        internal static bool Llama_ModelIsHybrid(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_is_hybrid(model);
         }
 
-        public static bool Llama_ModelIsDiffusion(SafeLlamaModelHandle model)
+        internal static bool Llama_ModelIsDiffusion(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_is_diffusion(model);
         }
 
-        public static unsafe int Llama_ModelDesc(SafeLlamaModelHandle model, byte* buf, nint bufSize)
+        internal static unsafe int Llama_ModelDesc(SafeLlamaModelHandle model, byte* buf, nint bufSize)
         {
             EnsureInitialized();
             return _llama_model_desc(model, buf, bufSize);
         }
 
-        public static int Llama_ModelMetaCount(SafeLlamaModelHandle model)
+        internal static int Llama_ModelMetaCount(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_meta_count(model);
         }
 
-        public static void Llama_ModelFree(IntPtr model)
+        internal static void Llama_ModelFree(IntPtr model)
         {
             EnsureInitialized();
             _llama_model_free(model);
         }
 
-        public static SafeLlamaModelHandle Llama_ModelLoadFromFile(string path, LLamaModelParams @params)
+        internal static SafeLlamaModelHandle Llama_ModelLoadFromFile(string path, LLamaModelParams @params)
         {
             EnsureInitialized();
             return _llama_model_load_from_file(path, @params);
         }
 
-        public static unsafe LLamaVocabNative* Llama_ModelGetVocab(SafeLlamaModelHandle model)
+        internal static unsafe LLamaVocabNative* Llama_ModelGetVocab(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_get_vocab(model);
         }
 
-        public static unsafe byte* Llama_ModelChatTemplate(SafeLlamaModelHandle model, string? name)
+        internal static unsafe byte* Llama_ModelChatTemplate(SafeLlamaModelHandle model, string? name)
         {
             EnsureInitialized();
             return _llama_model_chat_template(model, name);
         }
 
-        public static int Llama_ModelDecoderStartToken(SafeLlamaModelHandle model)
+        internal static int Llama_ModelDecoderStartToken(SafeLlamaModelHandle model)
         {
             EnsureInitialized();
             return _llama_model_decoder_start_token(model);
@@ -450,7 +482,7 @@ namespace Llama.csharp.Native
         /// <param name="index">Index of key to fetch</param>
         /// <param name="dest">buffer to write result into</param>
         /// <returns>The length of the string on success (even if the buffer is too small). -1 is the key does not exist.</returns>
-        public static int Llama_ModelMetaKeyByIndex(SafeLlamaModelHandle model, int index, Span<byte> dest)
+        internal static int Llama_ModelMetaKeyByIndex(SafeLlamaModelHandle model, int index, Span<byte> dest)
         {
             EnsureInitialized();
             unsafe
@@ -469,7 +501,7 @@ namespace Llama.csharp.Native
         /// <param name="index">Index of val to fetch</param>
         /// <param name="dest">Buffer to write result into</param>
         /// <returns>The length of the string on success (even if the buffer is too small). -1 is the key does not exist.</returns>
-        public static int Llama_ModelMetaValStrByIndex(SafeLlamaModelHandle model, int index, Span<byte> dest)
+        internal static int Llama_ModelMetaValStrByIndex(SafeLlamaModelHandle model, int index, Span<byte> dest)
         {
             EnsureInitialized();
             unsafe
@@ -488,7 +520,7 @@ namespace Llama.csharp.Native
         /// <param name="key"></param>
         /// <param name="dest"></param>
         /// <returns>The length of the string on success, or -1 on failure</returns>
-        public static int Llama_ModelMetaValStr(SafeLlamaModelHandle model, string key, Span<byte> dest)
+        internal static int Llama_ModelMetaValStr(SafeLlamaModelHandle model, string key, Span<byte> dest)
         {
             EnsureInitialized();
 

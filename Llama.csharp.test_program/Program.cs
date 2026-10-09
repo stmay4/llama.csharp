@@ -1,4 +1,4 @@
-﻿using Llama.csharp;
+using Llama.csharp;
 using Llama.csharp.Abstractions;
 using Llama.csharp.Native;
 using Spectre.Console;

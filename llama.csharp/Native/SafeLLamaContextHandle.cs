@@ -19,6 +19,11 @@ namespace Llama.csharp.Native
         public int EmbeddingSize => ThrowIfDisposed().EmbeddingSize;
 
         /// <summary>
+        /// Dimension of input embedding vectors
+        /// </summary>
+        public int InputEmbeddingSize => ThrowIfDisposed().InputEmbeddingSize;
+
+        /// <summary>
         /// Get the maximum batch size for this context
         /// </summary>
         public uint BatchSize => LlamaCpp.Llama_ContextNBatch(this);
@@ -165,7 +170,7 @@ namespace Llama.csharp.Native
         /// </summary>
         /// <param name="i"></param>
         /// <returns></returns>
-        public Span<float> GetLogitsIth(int i)
+        internal Span<float> GetLogitsIth(int i)
         {
             var model = ThrowIfDisposed();
 
@@ -186,7 +191,7 @@ namespace Llama.csharp.Native
         /// Equivalent to: llama_get_embeddings(ctx) + ctx->output_ids[i]*n_embd
         /// </summary>
         /// <returns>A pointer to the first float in an embedding, length = ctx.EmbeddingSize</returns>
-        public Span<float> GetEmbeddingsIth(LLamaPos pos)
+        internal Span<float> GetEmbeddingsIth(LLamaPos pos)
         {
             var model = ThrowIfDisposed();
 
@@ -203,7 +208,7 @@ namespace Llama.csharp.Native
         /// Equivalent to: llama_get_embeddings(ctx) + ctx->output_ids[i]*n_embd
         /// </summary>
         /// <returns>A pointer to the first float in an embedding, length = ctx.EmbeddingSize</returns>
-        public Span<float> GetEmbeddingsSeq(LLamaSeqId seq)
+        internal Span<float> GetEmbeddingsSeq(LLamaSeqId seq)
         {
             var model = ThrowIfDisposed();
 
@@ -226,7 +231,7 @@ namespace Llama.csharp.Native
         /// <param name="special">Allow tokenizing special and/or control tokens which otherwise are not exposed and treated as plaintext.</param>
         /// <returns></returns>
         /// <exception cref="RuntimeError"></exception>
-        public LLamaToken[] Tokenize(string text, bool add_bos, bool special, Encoding encoding)
+        internal LLamaToken[] Tokenize(string text, bool add_bos, bool special, Encoding encoding)
         {
             return ThrowIfDisposed().Vocab.Tokenize(text, add_bos, special, encoding);
         }
@@ -262,7 +267,7 @@ namespace Llama.csharp.Native
         /// </summary>
         /// <param name="batch"></param>
         /// <returns>0 = success <br />&lt; 0 = error (the KV cache state is restored to the state before this call)</returns>
-        public DecodeResult Encode(LLamaBatch batch)
+        internal DecodeResult Encode(LLamaBatch batch)
         {
             if (batch.TokenCount == 0)
                 return DecodeResult.Ok;
@@ -280,7 +285,7 @@ namespace Llama.csharp.Native
         ///  - 1: could not find a KV slot for the batch (try reducing the size of the batch or increase the context)<br />
         ///  - &lt; 0: error (the KV cache state is restored to the state before this call)<br />
         /// </returns>
-        public DecodeResult Decode(LLamaBatch batch)
+        internal DecodeResult Decode(LLamaBatch batch)
         {
             if (batch.TokenCount == 0)
                 return DecodeResult.Ok;
@@ -336,7 +341,7 @@ namespace Llama.csharp.Native
         ///  - 1: could not find a KV slot for the batch (try reducing the size of the batch or increase the context)<br />
         ///  - &lt; 0: error<br />
         /// </returns>
-        public DecodeResult Decode(LLamaBatchEmbeddings batch)
+        internal DecodeResult Decode(LLamaBatchEmbeddings batch)
         {
             if (batch.EmbeddingsCount == 0)
                 return DecodeResult.Ok;
@@ -412,6 +417,15 @@ namespace Llama.csharp.Native
         internal void SeqMemoryKeep(LLamaSeqId seq)
         {
             LlamaCpp.Llama_ContextMemorySeqKeep(this, seq);
+        }
+
+        #endregion
+
+        #region AttentionSettings
+
+        internal void SetCausalAttention(bool isCausal)
+        {
+            LlamaCpp.Llama_ContextSetCausalAttn(this, isCausal);
         }
 
         #endregion

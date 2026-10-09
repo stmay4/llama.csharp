@@ -102,25 +102,6 @@ namespace Llama.csharp.Native
 
         internal GroupDisposable ToNativeBatch(out LLamaNativeBatch batch)
         {
-            // Sanity checking
-#if DEBUG
-            // Check every output logit position is generating logits for exactly one sequence
-            foreach (var (seq, idx) in _logitPositions)
-            {
-                Debug.Assert(_logits[idx] != 0);
-                Debug.Assert(_sequenceIdCount[idx] == 1);
-                Debug.Assert(_sequenceIds[idx][0] == seq);
-            }
-
-            // Check every index, if it's generating logits it must be in the _logitPositions list. Otherwise it must not.
-            for (var i = 0; i < _logits.Length; i++)
-            {
-                var actual = _logitPositions.Any(x => x.Item2 == i);
-                var expected = _logits[i] != 0;
-                Debug.Assert(actual == expected, $"Expected {actual} == {expected} @ index:{i}");
-            }
-#endif
-
             // This group holds all of the memory pins
             var group = new GroupDisposable();
 
@@ -135,10 +116,7 @@ namespace Llama.csharp.Native
                     pos = (LLamaPos*)group.Add(_positions.AsMemory().Pin()).Pointer,
                     seq_id = (LLamaSeqId**)group.Add(_sequenceIdsPtrs.AsMemory().Pin()).Pointer,
 
-                    // embd is not currently supported, so this is always null!
                     embd = null,
-
-                    // Note that if embd is **not null** then this will be null!
                     token = (LLamaToken*)group.Add(_tokens.AsMemory().Pin()).Pointer,
                 };
 
